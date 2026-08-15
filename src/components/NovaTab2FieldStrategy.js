@@ -797,7 +797,7 @@ function StrategicObjectivesMSL() {
 }
 
 function MSLView({ selectedMSL }) {
-  const msl = MSL_PERFORMANCE.find((m) => `${m.msl} — ${m.territory}` === selectedMSL) || MSL_PERFORMANCE[0];
+  const msl = MSL_PERFORMANCE.find((m) => selectedMSL.startsWith(m.msl)) || MSL_PERFORMANCE[0];
   const [openTopic, setOpenTopic] = useState(null);
 
   const mslTopics = TERRITORY_HCP_TOPICS[msl.territory] || [];
