@@ -1,0 +1,19 @@
+// Proposed actions — BioMarin Pharmaceutical.
+
+export const ACTIONS = [
+  { id: 'A1',  title: 'Develop KUVAN-vs-Sephience clinical comparison card grounded in separate placebo-controlled trial data', fromInsightRef: 'AI1', moRef: 'MO1', owner: 'Medical Comms',  dueBy: '2026-Q3', status: 'Started',  strategyImpact: 'Confirmed' },
+  { id: 'A2',  title: 'Commission BH4-responsiveness testing FAQ for community geneticists fielding switch questions', fromInsightRef: 'AI1', moRef: 'MO1', owner: null,             dueBy: null,      status: 'Proposed', strategyImpact: null       },
+  { id: 'A3',  title: 'Publish adolescent-specific PALYNZIQ starter guide with plain-language monitoring protocol', fromInsightRef: 'AI2', moRef: 'MO2', owner: 'Medical Comms',  dueBy: '2026-Q3', status: 'Accepted', strategyImpact: 'Confirmed' },
+  { id: 'A4',  title: 'Distribute adolescent vs. adult anaphylaxis-monitoring protocol comparison to field team', fromInsightRef: 'AI2', moRef: 'MO2', owner: 'Field Medical', dueBy: '2026-Q3', status: 'Started',  strategyImpact: 'Confirmed' },
+  { id: 'A5',  title: 'Develop internal MSL-facing Aldurazyme co-marketing clarity card (BioMarin vs. Genzyme/Sanofi routing)', fromInsightRef: 'AI3', moRef: 'MO3', owner: 'Field Medical', dueBy: '2026-Q3', status: 'Accepted', strategyImpact: 'Confirmed' },
+  { id: 'A6',  title: 'Publish MPS community-pediatrician screening checklist across Naglazyme, Vimizim, and Brineura', fromInsightRef: 'AI4', moRef: 'MO3', owner: 'Field Medical', dueBy: '2026-Q3', status: 'Started',  strategyImpact: 'Confirmed' },
+  { id: 'A7',  title: 'Scope MPS referral-pathway digest with HEOR using global reference-center data', fromInsightRef: 'AI4', moRef: 'MO3', owner: null,             dueBy: null,      status: 'Proposed', strategyImpact: null       },
+  { id: 'A8',  title: 'Prepare hypochondroplasia patient-identification checklist ahead of Q3 2026 sNDA filing', fromInsightRef: 'AI5', moRef: 'MO4', owner: 'Medical Comms',  dueBy: '2026-Q3', status: 'Started',  strategyImpact: 'Confirmed' },
+  { id: 'A9',  title: 'Develop SCFE safety-signal precision talking points distinguishing discontinued Turner/SHOX/ACAN trials from achondroplasia safety base', fromInsightRef: 'AI6', moRef: 'MO4', owner: 'Medical Comms',  dueBy: '2026-Q3', status: 'Accepted', strategyImpact: 'Confirmed' },
+  { id: 'A10', title: 'Publish achondroplasia safety-database one-pager (>5,000 patients, zero SCFE cases)', fromInsightRef: 'AI6', moRef: 'MO4', owner: 'Field Medical', dueBy: '2026-Q3', status: 'Started',  strategyImpact: 'Confirmed' },
+  { id: 'A11', title: 'Prepare BMN 333 Phase 1/2 differentiation briefing ahead of navepegritide EU decision (Q4 2026)', fromInsightRef: 'AI7', moRef: 'MO5', owner: 'Field Medical', dueBy: '2026-Q4', status: 'Proposed', strategyImpact: null       },
+  { id: 'A12', title: 'Schedule proactive scientific-exchange re-engagement with Dr. Klaus Mohnike', fromInsightRef: 'AI7', moRef: 'MO5', owner: null,             dueBy: null,      status: 'Proposed', strategyImpact: null       },
+  { id: 'A13', title: 'Publish ex-US scientific-credibility statement and engagement plan for UK/EU/international hemophilia KOLs', fromInsightRef: 'AI8', moRef: 'MO6', owner: 'Medical Comms',  dueBy: '2026-Q3', status: 'Accepted', strategyImpact: 'Confirmed' },
+  { id: 'A14', title: 'Finalize and distribute US patient-transition protocol ahead of May 2026 withdrawal date', fromInsightRef: 'AI9', moRef: 'MO6', owner: 'Field Medical', dueBy: '2026-Q2', status: 'Started',  strategyImpact: 'Confirmed' },
+  { id: 'A15', title: 'Compile field/KOL intelligence brief to inform divestiture evaluation', fromInsightRef: 'AI9', moRef: 'MO6', owner: 'Medical Affairs Leadership', dueBy: '2026-Q3', status: 'Proposed', strategyImpact: null },
+];

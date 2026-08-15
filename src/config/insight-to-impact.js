@@ -1,0 +1,55 @@
+// Insight-to-Impact — lineage from captured insight → action → outcome.
+// BioMarin Pharmaceutical.
+
+export const INSIGHT_TO_IMPACT = [
+  {
+    id: 'i2i-1',
+    insight: 'Community geneticists requested a direct, honest KUVAN-vs-Sephience comparison rather than a defensive one.',
+    action: 'KUVAN-vs-Sephience clinical comparison card developed and deployed to the PKU field team, grounded in separate placebo-controlled trial data.',
+    outcome: 'MSL-reported prescriber confidence in articulating KUVAN\'s continued role for BH4-responsive patients rose from 38% to 61% of tracked interactions within 8 weeks.',
+    timeframe: '8 weeks',
+    impactScore: 7,
+    relatedInsight: 'AI1',
+    relatedMO: 'MO1',
+  },
+  {
+    id: 'i2i-2',
+    insight: 'Pediatric geneticists cited adolescent monitoring-burden concerns, not efficacy skepticism, as the real PALYNZIQ adoption barrier.',
+    action: 'Adolescent-specific PALYNZIQ starter guide published with a plain-language dose-escalation and monitoring protocol.',
+    outcome: 'MSL-reported adolescent PALYNZIQ initiation discussion rate rose from 29% to 51% of newly-eligible tracked accounts within one quarter.',
+    timeframe: '10 weeks',
+    impactScore: 8,
+    relatedInsight: 'AI2',
+    relatedMO: 'MO2',
+  },
+  {
+    id: 'i2i-3',
+    insight: 'MSLs themselves were unsure whether Aldurazyme supply and access questions route through BioMarin or Genzyme/Sanofi.',
+    action: 'Internal MSL-facing Aldurazyme co-marketing clarity card developed and distributed ahead of the next MPS field-team training cycle.',
+    outcome: 'Field-reported MSL confidence in correctly routing Aldurazyme questions rose from 44% to 79% of the MPS field team within one quarter.',
+    timeframe: '9 weeks',
+    impactScore: 6,
+    relatedInsight: 'AI3',
+    relatedMO: 'MO3',
+  },
+  {
+    id: 'i2i-4',
+    insight: 'Community endocrinologists were conflating the discontinued Turner/SHOX/ACAN SCFE signal with general achondroplasia safety.',
+    action: 'SCFE safety-signal precision talking points and achondroplasia safety-database one-pager (>5,000 patients, zero SCFE cases) developed and distributed.',
+    outcome: 'MSL-reported ability to correctly scope the SCFE signal to the discontinued trials rose from 47% to 74% of tracked skeletal-facing accounts within 6 weeks.',
+    timeframe: '6 weeks',
+    impactScore: 8,
+    relatedInsight: 'AI6',
+    relatedMO: 'MO4',
+  },
+  {
+    id: 'i2i-5',
+    insight: 'US hemophilia treatment centers needed a single, concrete, written patient-transition protocol ahead of the May 2026 withdrawal.',
+    action: 'US patient-transition protocol finalized and distributed to all US hemophilia-facing MSLs.',
+    outcome: 'Field-reported consistency of patient-facing withdrawal messaging across tracked US treatment centers rose from 41% to 72% within 8 weeks.',
+    timeframe: '8 weeks',
+    impactScore: 9,
+    relatedInsight: 'AI9',
+    relatedMO: 'MO6',
+  },
+];
