@@ -1,0 +1,1454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BioMarin Pharmaceutical · Pulse Intelligence · August 15, 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --cream:     #F5F0E9;
+  --paper:     #EDE8DC;
+  --paper-dk:  #E4DECE;
+  --ink:       #1A1612;
+  --ink-mid:   #3D3530;
+  --ink-lt:    #7A6E65;
+  --rule:      #D4CEC4;
+  --teal:      #0D6E6E;
+  --teal-lt:   #1A8B9B;
+  --amber:     #B5540A;
+  --amber-lt:  #E8780F;
+  --rose:      #8B2635;
+  --sage:      #4A6741;
+  --purple:    #5B3F7E;
+  --font-serif: 'Libre Baskerville', Georgia, serif;
+  --font-mono:  'DM Mono', 'IBM Plex Mono', monospace;
+  --font-sans:  'DM Sans', 'Inter', -apple-system, sans-serif;
+}
+
+.btn-listen {
+  display: flex; align-items: center; gap: 5px;
+  background: rgba(13,110,110,0.10); border: 1px solid var(--teal);
+  border-radius: 5px; padding: 5px 10px;
+  font-family: var(--font-sans); font-size: 10px; font-weight: 600;
+  color: var(--teal); letter-spacing: 0.04em; cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-listen:hover { background: rgba(13,110,110,0.18); }
+.btn-listen.playing { background: rgba(13,110,110,0.18); }
+.listen-dot { width: 5px; height: 5px; background: var(--teal); border-radius: 50%; animation: pulse-dot 2s ease-in-out infinite; }
+
+/* Audio player bar */
+#audio-bar {
+  display: none;
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 500;
+  background: var(--paper); border-top: 1px solid var(--rule);
+  padding: 10px 20px;
+  align-items: center; gap: 14px;
+}
+#audio-bar.open { display: flex; }
+.audio-play-btn {
+  width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+  background: var(--ink); border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: opacity 0.15s;
+}
+.audio-play-btn:hover { opacity: 0.80; }
+.audio-play-icon  { font-size: 11px; color: var(--cream); margin-left: 2px; }
+.audio-pause-icon { font-size: 11px; color: var(--cream); }
+.audio-meta { display: flex; flex-direction: column; gap: 1px; min-width: 160px; }
+.audio-title { font-size: 11px; font-weight: 700; color: var(--ink); }
+.audio-subtitle { font-size: 9px; color: var(--ink-lt); font-family: var(--font-mono); }
+.audio-progress-wrap { flex: 1; display: flex; align-items: center; gap: 10px; }
+.audio-track { flex: 1; height: 3px; background: var(--rule); border-radius: 2px; cursor: pointer; position: relative; }
+.audio-fill { height: 100%; background: var(--ink); border-radius: 2px; width: 0%; transition: width 0.25s linear; }
+.audio-time { font-size: 9px; color: var(--ink-lt); white-space: nowrap; min-width: 70px; text-align: right; font-family: var(--font-mono); }
+.audio-close {
+  background: none; border: none; color: var(--ink-lt); cursor: pointer;
+  font-size: 16px; line-height: 1; padding: 4px; transition: color 0.15s;
+}
+.audio-close:hover { color: var(--ink); }
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font-sans);
+  background: var(--cream);
+  color: var(--ink);
+  height: 100vh;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  position: relative;
+}
+
+#noise {
+  position: fixed; inset: 0; z-index: 9998; pointer-events: none; opacity: 0.03;
+}
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--paper); }
+::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--teal); }
+
+/* ── SHELL ─────────────────────────────────── */
+#shell {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  grid-template-rows: 52px 1fr;
+  grid-template-areas: "topbar topbar" "sidebar main";
+  height: 100vh;
+  overflow: hidden;
+  transition: grid-template-columns 0.22s ease;
+}
+#shell.collapsed { grid-template-columns: 0px 1fr; }
+#shell.signal-open { grid-template-rows: 34px 52px 1fr; grid-template-areas: "signal signal" "topbar topbar" "sidebar main"; }
+
+/* ── SIGNAL BANNER ─────────────────────────── */
+#signal-banner {
+  grid-area: signal; display: none;
+  align-items: center; gap: 10px; padding: 0 16px;
+  background: var(--ink); color: var(--cream);
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.02em;
+}
+#shell.signal-open #signal-banner { display: flex; }
+.signal-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--amber-lt); animation: pulse-dot 1.6s ease-in-out infinite; flex-shrink: 0; }
+.signal-text { flex: 1; opacity: 0.92; }
+.signal-text strong { color: var(--amber-lt); font-weight: 500; }
+.signal-dismiss { background: none; border: none; color: rgba(245,240,232,0.5); cursor: pointer; font-size: 14px; line-height: 1; padding: 4px; }
+.signal-dismiss:hover { color: var(--cream); }
+@keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* ── TOPBAR ────────────────────────────────── */
+#topbar {
+  grid-area: topbar;
+  background: rgba(245,240,232,0.96);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--rule);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  z-index: 100;
+}
+.topbar-left  { display: flex; align-items: center; gap: 10px; }
+.topbar-right { display: flex; align-items: center; gap: 8px; }
+.topbar-wordmark { font-family: var(--font-serif); font-weight: 700; font-size: 17px; color: var(--ink); letter-spacing: -0.01em; display: flex; align-items: center; gap: 7px; }
+.wordmark-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--teal); animation: pulse-dot 2s ease-in-out infinite; }
+#topbarCenter { font-family: var(--font-mono); font-size: 10px; color: var(--ink-lt); letter-spacing: 0.08em; text-transform: uppercase; }
+.chip { font-size: 9.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 9px; border-radius: 3px; background: rgba(13,110,110,0.10); border: 1px solid rgba(13,110,110,0.30); color: var(--teal); font-family: var(--font-mono); }
+.topbar-date { font-size: 10px; color: var(--ink-lt); letter-spacing: 0.03em; }
+
+/* ── SIDEBAR TOGGLE ────────────────────────── */
+#sidebar-toggle {
+  position: fixed; left: 228px; top: 50%; transform: translateY(-50%);
+  width: 14px; height: 36px;
+  background: var(--paper); border: 1px solid var(--rule); border-left: none;
+  border-radius: 0 4px 4px 0; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; color: var(--ink-lt);
+  z-index: 200; transition: left 0.22s ease;
+}
+#shell.collapsed #sidebar-toggle { left: 0px; }
+
+/* ── SIDEBAR ───────────────────────────────── */
+#sidebar { grid-area: sidebar; background: var(--paper); border-right: 1px solid var(--rule); overflow-y: auto; overflow-x: hidden; transition: opacity 0.2s ease; position: sticky; top: 0; align-self: start; height: 100%; }
+#shell.collapsed #sidebar { opacity: 0; pointer-events: none; }
+.sidebar-inner { padding: 12px 0; min-width: 240px; }
+.sidebar-section-label { font-size: 9px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-lt); padding: 0 14px 6px; margin-top: 10px; }
+.brief-card { padding: 9px 14px; cursor: pointer; border-left: 2px solid transparent; transition: background 0.13s; position: relative; }
+.brief-card:hover { background: rgba(13,110,110,0.04); }
+.brief-card.active { border-left-color: var(--teal); background: rgba(13,110,110,0.06); }
+.brief-card-title { font-size: 11px; font-weight: 500; color: var(--ink-mid); line-height: 1.4; margin-bottom: 2px; }
+.brief-card.active .brief-card-title { color: var(--ink); }
+.brief-card-meta { font-size: 9px; color: var(--ink-lt); letter-spacing: 0.02em; }
+.new-dot { width: 5px; height: 5px; background: var(--teal); border-radius: 50%; position: absolute; top: 9px; right: 12px; animation: pulse-dot 2.5s ease-in-out infinite; }
+.sidebar-rule { height: 1px; background: var(--rule); margin: 10px 14px; }
+.nav-item { display: flex; align-items: center; gap: 8px; padding: 8px 14px; cursor: pointer; font-size: 11px; font-weight: 500; color: var(--ink-lt); transition: background 0.13s, color 0.13s; text-decoration: none; }
+.nav-item:hover { background: rgba(13,110,110,0.04); color: var(--ink); }
+.nav-item.active { color: var(--teal); background: rgba(13,110,110,0.06); border-left: 2px solid var(--teal); }
+.nav-icon { font-size: 12px; width: 14px; text-align: center; opacity: 0.7; }
+.nav-item.active .nav-icon { opacity: 1; }
+
+/* ── MAIN ──────────────────────────────────── */
+#main { grid-area: main; overflow-y: auto; background: var(--cream); }
+.view { display: none; }
+.view.active { display: block; }
+.brief-content { display: none; }
+.brief-content.active { display: block; }
+
+/* ── BRIEF ARTICLE ─────────────────────────── */
+.brief-eyebrow { display: flex; align-items: center; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+.tag { font-size: 9px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; padding: 3px 8px; border-radius: 3px; }
+.tag-outline { border: 1px solid var(--teal); color: var(--teal); }
+.tag-product { background: rgba(13,110,110,0.10); border: 1px solid rgba(13,110,110,0.30); color: var(--teal); }
+.tag-alert   { background: rgba(181,84,10,0.10); border: 1px solid rgba(181,84,10,0.30); color: var(--amber); }
+.eyebrow-date { margin-left: auto; font-size: 10px; color: var(--ink-lt); }
+
+.brief-headline { font-family: var(--font-serif); font-size: 26px; font-weight: 700; color: var(--ink); line-height: 1.4; letter-spacing: -0.01em; margin-bottom: 14px; }
+.brief-headline em { color: var(--teal); font-style: italic; }
+.brief-lede { font-family: var(--font-serif); font-size: 14px; font-weight: 400; color: var(--ink-mid); line-height: 1.85; max-width: 66ch; margin-bottom: 16px; }
+
+.brief-meta { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; padding: 12px 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); margin-bottom: 22px; }
+.meta-item { display: flex; flex-direction: column; gap: 2px; }
+.meta-label { font-size: 8px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-lt); }
+.meta-value { font-size: 12px; font-weight: 600; color: var(--teal); }
+.meta-value.warn { color: var(--amber); }
+.meta-value.dim  { color: var(--ink-mid); font-weight: 400; }
+
+.summary-box { background: var(--ink); border-radius: 8px; padding: 18px 20px; margin-bottom: 30px; position: relative; overflow: hidden; }
+.summary-box::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--teal-lt), var(--amber-lt), var(--rose)); }
+.summary-label { font-size: 9px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--teal-lt); margin-bottom: 10px; font-family: var(--font-mono); }
+.summary-body { font-size: 13px; line-height: 1.8; color: rgba(245,240,232,0.9); }
+.summary-body strong { color: var(--cream); font-weight: 600; }
+
+.section-rule { height: 1px; background: var(--rule); margin: 30px 0; }
+.brief-section { opacity: 0; transform: translateY(12px); animation: rise 0.4s ease forwards; }
+@keyframes rise { to { opacity: 1; transform: translateY(0); } }
+
+.community-marker { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
+.cm-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.cm-rule { width: 1px; height: 14px; background: var(--rule); }
+.cm-label { font-family: var(--font-mono); font-size: 10px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; }
+
+.signal-pill { display: inline-block; font-family: var(--font-mono); font-size: 8.5px; font-weight: 600; letter-spacing: 0.05em; padding: 3px 8px; border-radius: 3px; border: 1px solid; margin-bottom: 12px; }
+.sp-teal   { background: rgba(13,110,110,0.08);  border-color: rgba(13,110,110,0.35);  color: var(--teal); }
+.sp-sage   { background: rgba(74,103,65,0.08);   border-color: rgba(74,103,65,0.35);   color: var(--sage); }
+.sp-amber  { background: rgba(181,84,10,0.08);   border-color: rgba(181,84,10,0.35);   color: var(--amber); }
+.sp-rose   { background: rgba(139,38,53,0.08);   border-color: rgba(139,38,53,0.35);   color: var(--rose); }
+
+.section-h2 { font-family: var(--font-serif); font-size: 18px; font-weight: 700; color: var(--ink); line-height: 1.45; margin-bottom: 12px; }
+.section-h2 em { font-style: italic; }
+.section-h2.c-teal em  { color: var(--teal); }
+.section-h2.c-sage em  { color: var(--sage); }
+.section-h2.c-amber em { color: var(--amber); }
+.section-h2.c-rose em  { color: var(--rose); }
+
+.section-body { font-size: 13px; line-height: 1.85; color: var(--ink-mid); margin-bottom: 14px; }
+
+.pull-quote { border-left: 3px solid var(--teal); background: var(--paper); padding: 14px 16px; margin: 16px 0; border-radius: 0 6px 6px 0; }
+.pull-quote.c-sage  { border-left-color: var(--sage); }
+.pull-quote.c-amber { border-left-color: var(--amber); }
+.pull-quote.c-rose  { border-left-color: var(--rose); }
+.pull-quote-text { font-family: var(--font-serif); font-style: italic; font-size: 13px; line-height: 1.7; color: var(--ink); margin-bottom: 6px; }
+.pull-quote-cite { font-size: 9px; color: var(--ink-lt); letter-spacing: 0.04em; }
+
+.fvq { margin-top: 14px; padding: 13px 15px; background: rgba(181,84,10,0.05); border: 1px dashed rgba(181,84,10,0.3); border-radius: 6px; }
+.fvq-label { font-size: 8px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--amber); margin-bottom: 6px; font-family: var(--font-mono); }
+.fvq-text { font-size: 12px; line-height: 1.7; color: var(--ink-mid); }
+
+.action-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.act-btn { font-family: var(--font-sans); font-size: 10px; font-weight: 500; letter-spacing: 0.02em; padding: 6px 12px; border-radius: 5px; cursor: pointer; border: 1px solid; transition: background 0.13s; }
+.act-defend   { background: rgba(13,110,110,0.08); border-color: var(--teal); color: var(--teal); }
+.act-defend:hover   { background: rgba(13,110,110,0.15); }
+.act-forecast { background: rgba(91,63,126,0.08); border-color: var(--purple); color: var(--purple); }
+.act-forecast:hover { background: rgba(91,63,126,0.15); }
+.act-flag     { background: var(--paper); border-color: var(--rule); color: var(--ink-mid); }
+.act-flag:hover     { border-color: var(--ink-lt); }
+
+/* Comparison table */
+.comp-matrix { width: 100%; border-collapse: collapse; font-size: 11px; margin: 14px 0; }
+.comp-matrix th { font-size: 9px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-lt); padding: 6px 10px; background: var(--paper-dk); border: 1px solid var(--rule); text-align: left; }
+.comp-matrix td { padding: 7px 10px; border: 1px solid var(--rule); color: var(--ink-mid); vertical-align: middle; }
+.comp-matrix tr.hl td { background: rgba(13,110,110,0.05); font-weight: 500; color: var(--ink); }
+.chk { color: var(--teal); font-weight: 700; }
+.crs { color: var(--rose); font-weight: 700; }
+
+.sources { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+.source-chip { font-size: 9px; font-weight: 500; padding: 3px 8px; border-radius: 4px; border: 1px solid var(--rule); background: var(--paper); color: var(--ink-lt); }
+
+/* Bottom line */
+.bottom-line { background: var(--paper); border: 1px solid var(--rule); border-top: 3px solid var(--teal); border-radius: 8px; padding: 20px 22px; margin-top: 30px; }
+.bottom-line-header { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+.bottom-line-label { font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink); font-family: var(--font-mono); }
+.bottom-line-items { display: flex; flex-direction: column; gap: 12px; }
+.bottom-line-item { display: flex; gap: 12px; align-items: flex-start; }
+.bl-num { font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: var(--teal); flex-shrink: 0; padding-top: 2px; }
+.bl-text { font-size: 12.5px; line-height: 1.75; color: var(--ink-mid); }
+.bl-text strong { color: var(--ink); }
+
+.brief-footer { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--rule); display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.footer-sources { font-size: 9px; color: var(--ink-lt); line-height: 1.6; margin-bottom: 6px; max-width: 60ch; }
+.footer-disc { font-size: 9px; color: rgba(122,110,101,0.7); font-style: italic; }
+.footer-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.footer-btn { font-family: var(--font-sans); font-size: 10px; font-weight: 500; padding: 7px 13px; border-radius: 5px; cursor: pointer; border: 1px solid var(--rule); background: var(--paper); color: var(--ink-mid); }
+.footer-btn:hover { border-color: var(--teal); color: var(--teal); }
+.footer-btn.primary { background: var(--teal); border-color: var(--teal); color: #fff; }
+.footer-btn.primary:hover { background: var(--teal-lt); }
+
+/* ── SIDE PANEL ────────────────────────────── */
+#side-panel-overlay { position: fixed; inset: 0; background: rgba(26,22,18,0.25); z-index: 899; opacity: 0; pointer-events: none; transition: opacity 0.22s ease; }
+#side-panel-overlay.open { opacity: 1; pointer-events: auto; }
+#side-panel {
+  position: fixed; top: 0; right: 0; bottom: 0; width: 400px; max-width: 92vw;
+  background: var(--cream); border-left: 1px solid var(--rule);
+  transform: translateX(100%); transition: transform 0.26s ease;
+  z-index: 900; overflow-y: auto; box-shadow: -8px 0 30px rgba(26,22,18,0.12);
+}
+#side-panel.open { transform: translateX(0); }
+.panel-header { position: sticky; top: 0; background: rgba(245,240,232,0.97); backdrop-filter: blur(8px); padding: 18px 22px; border-bottom: 1px solid var(--rule); display: flex; align-items: center; justify-content: space-between; z-index: 2; }
+.panel-title { font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-lt); }
+.panel-close { background: none; border: none; font-size: 18px; color: var(--ink-lt); cursor: pointer; padding: 2px 6px; line-height: 1; }
+.panel-close:hover { color: var(--ink); }
+.panel-body { padding: 22px; }
+.panel-claim { font-family: var(--font-serif); font-size: 15px; line-height: 1.6; color: var(--ink); margin-bottom: 20px; font-weight: 700; }
+
+.pblock { display: flex; gap: 12px; margin-bottom: 18px; }
+.pblock-icon { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; }
+.pi-claim { background: var(--teal); }
+.pi-evidence { background: var(--amber); }
+.pi-voices { background: var(--sage); }
+.pi-confidence { background: var(--purple); }
+.pblock-content { flex: 1; }
+.pblock-label { font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-lt); margin-bottom: 4px; }
+.pblock-body { font-size: 12px; line-height: 1.7; color: var(--ink-mid); }
+
+.confidence-bar-wrap { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.confidence-bar-bg { flex: 1; height: 6px; background: var(--rule); border-radius: 3px; overflow: hidden; }
+.confidence-bar-fill { height: 100%; width: 0%; background: var(--purple); border-radius: 3px; transition: width 1s ease; }
+.confidence-pct { font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: var(--purple); min-width: 30px; text-align: right; }
+
+.scenario-card { border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; background: var(--paper); }
+.scenario-card.primary { border: 1px solid var(--purple); border-left: 3px solid var(--purple); background: rgba(91,63,126,0.04); }
+.scenario-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.scenario-label { font-size: 12px; font-weight: 600; color: var(--ink); }
+.prob-chip { font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; padding: 3px 8px; border-radius: 10px; flex-shrink: 0; }
+.prob-high { background: rgba(91,63,126,0.12); color: var(--purple); }
+.prob-med  { background: rgba(13,110,110,0.10); color: var(--teal); }
+.prob-low  { background: var(--rule); color: var(--ink-lt); }
+.scenario-body { font-size: 12px; line-height: 1.7; color: var(--ink-mid); }
+.scenario-analogy { font-size: 11px; font-style: italic; color: var(--ink-lt); margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--rule); }
+.caveat-box { margin-top: 16px; background: rgba(181,84,10,0.06); border: 1px solid rgba(181,84,10,0.25); border-radius: 6px; padding: 13px 15px; }
+.caveat-label { font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--amber); margin-bottom: 5px; }
+.caveat-body { font-size: 11.5px; line-height: 1.65; color: var(--ink-mid); }
+
+/* ── SIGNAL VELOCITY VIEW ──────────────────── */
+#view-velocity-inner { padding: 28px 32px 80px; max-width: 900px; }
+.vel-header { margin-bottom: 24px; }
+.vel-title { font-family: var(--font-serif); font-size: 20px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+.vel-sub { font-size: 12px; color: var(--ink-lt); line-height: 1.6; }
+
+.vel-alert { background: rgba(139,38,53,0.06); border: 1px solid rgba(139,38,53,0.25); border-radius: 8px; padding: 14px 16px; margin-bottom: 20px; }
+.vel-alert-label { font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--rose); margin-bottom: 6px; font-family: var(--font-mono); }
+.vel-alert-body { font-size: 12px; line-height: 1.7; color: var(--ink-mid); }
+
+.vel-card { background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; padding: 16px 18px; margin-bottom: 12px; }
+.vel-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.vel-signal { font-family: var(--font-serif); font-size: 13px; font-weight: 700; color: var(--ink); flex: 1; line-height: 1.4; }
+.vel-badge { font-size: 9px; font-weight: 700; letter-spacing: 0.06em; padding: 2px 8px; border-radius: 3px; flex-shrink: 0; margin-top: 2px; font-family: var(--font-mono); }
+.badge-accel  { background: rgba(181,84,10,0.10); color: var(--amber); border: 1px solid rgba(181,84,10,0.3); }
+.badge-new    { background: rgba(139,38,53,0.10); color: var(--rose); border: 1px solid rgba(139,38,53,0.25); }
+.badge-stable { background: rgba(13,110,110,0.08); color: var(--teal); border: 1px solid rgba(13,110,110,0.25); }
+.badge-decel  { background: var(--rule); color: var(--ink-lt); border: 1px solid var(--rule); }
+
+.vel-bars { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.vel-bar-wrap { display: flex; align-items: center; gap: 10px; }
+.vel-label { font-size: 9px; color: var(--ink-lt); min-width: 92px; text-transform: uppercase; letter-spacing: 0.04em; font-family: var(--font-mono); }
+.vel-bar-bg { flex: 1; height: 5px; background: var(--rule); border-radius: 3px; overflow: hidden; }
+.vel-bar { height: 100%; border-radius: 3px; width: 0%; transition: width 1s ease; }
+.vbar-provider    { background: var(--teal); }
+.vbar-payer       { background: var(--amber); }
+.vbar-competitive { background: var(--rose); }
+.vbar-patient     { background: var(--sage); }
+.vel-delta { font-family: var(--font-mono); font-size: 9.5px; font-weight: 600; min-width: 34px; text-align: right; }
+.vel-delta.up   { color: var(--sage); }
+.vel-delta.new  { color: var(--rose); }
+.vel-delta.stable { color: var(--teal); }
+.vel-delta.down { color: var(--ink-lt); }
+.vel-note { font-size: 11.5px; color: var(--ink-mid); line-height: 1.7; }
+
+/* ── NARRATIVE MAP VIEW ─────────────────────── */
+#view-narrative-inner { padding: 28px 32px 80px; max-width: 1000px; }
+.narr-header { margin-bottom: 20px; }
+.narr-title { font-family: var(--font-serif); font-size: 20px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+.narr-sub { font-size: 12px; color: var(--ink-lt); line-height: 1.6; }
+
+.topic-pills { display: flex; gap: 8px; flex-wrap: wrap; margin: 18px 0 22px; }
+.topic-pill { font-family: var(--font-mono); font-size: 10.5px; font-weight: 500; padding: 8px 14px; border-radius: 20px; border: 1px solid var(--rule); background: var(--paper); color: var(--ink-mid); cursor: pointer; transition: background 0.13s, border-color 0.13s; }
+.topic-pill:hover { border-color: var(--teal); }
+.topic-pill.active { background: var(--ink); border-color: var(--ink); color: var(--cream); }
+
+.tension-box { display: flex; align-items: flex-start; gap: 12px; background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; padding: 16px 18px; margin-bottom: 22px; }
+.tension-icon { font-size: 18px; flex-shrink: 0; }
+.tension-text { font-size: 13px; line-height: 1.75; color: var(--ink-mid); flex: 1; }
+.tension-text em { color: var(--teal); font-style: italic; }
+.tension-badge { font-size: 9px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 9px; border-radius: 3px; flex-shrink: 0; }
+.badge-diverging { background: rgba(139,38,53,0.10); color: var(--rose); border: 1px solid rgba(139,38,53,0.25); }
+.badge-converging { background: rgba(13,110,110,0.08); color: var(--teal); border: 1px solid rgba(13,110,110,0.25); }
+.badge-stable-b { background: var(--rule); color: var(--ink-lt); border: 1px solid var(--rule); }
+.badge-watch { background: rgba(181,84,10,0.10); color: var(--amber); border: 1px solid rgba(181,84,10,0.3); }
+
+.narr-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 780px) { .narr-cards { grid-template-columns: 1fr; } }
+.narr-card { background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; padding: 16px 18px; border-top: 3px solid var(--rule); }
+.narr-card-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.narr-card-name { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; font-family: var(--font-mono); }
+.status-chip { font-size: 8.5px; font-weight: 700; letter-spacing: 0.05em; padding: 2px 7px; border-radius: 3px; }
+.status-questioning { background: rgba(181,84,10,0.10); color: var(--amber); border: 1px solid rgba(181,84,10,0.3); }
+.status-voicing { background: rgba(74,103,65,0.10); color: var(--sage); border: 1px solid rgba(74,103,65,0.3); }
+.status-monitoring { background: rgba(13,110,110,0.08); color: var(--teal); border: 1px solid rgba(13,110,110,0.25); }
+.status-advancing { background: rgba(139,38,53,0.10); color: var(--rose); border: 1px solid rgba(139,38,53,0.25); }
+.narr-card-headline { font-family: var(--font-serif); font-size: 13px; font-weight: 700; line-height: 1.5; color: var(--ink); margin-bottom: 8px; }
+.narr-card-headline em { font-style: italic; }
+.narr-card-body { font-size: 11.5px; line-height: 1.65; color: var(--ink-mid); margin-bottom: 10px; }
+.narr-card-quote { font-family: var(--font-serif); font-style: italic; font-size: 11px; line-height: 1.6; color: var(--ink-mid); padding-left: 10px; border-left: 2px solid var(--rule); margin-bottom: 8px; }
+.narr-card-tension { font-size: 10px; display: flex; align-items: center; gap: 5px; }
+
+/* ── PLATFORM INTEGRATION VIEW ──────────────── */
+#view-integration-inner { padding: 60px 32px; display: flex; align-items: center; justify-content: center; height: calc(100vh - 52px); text-align: center; }
+.integration-placeholder { max-width: 420px; }
+.integration-icon { font-size: 40px; color: var(--rule); margin-bottom: 16px; }
+.integration-title { font-family: var(--font-serif); font-size: 18px; font-weight: 700; color: var(--ink-mid); margin-bottom: 8px; }
+.integration-sub { font-size: 12px; color: var(--ink-lt); line-height: 1.7; }
+</style>
+</head>
+<body>
+<svg id="noise" xmlns="http://www.w3.org/2000/svg">
+  <filter id="noiseFilter"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch"/></filter>
+  <rect width="100%" height="100%" filter="url(#noiseFilter)"/>
+</svg>
+
+<div id="shell" class="signal-open">
+
+<!-- SIGNAL BANNER -->
+<div id="signal-banner">
+  <span class="signal-dot"></span>
+  <span class="signal-text">Signal update: <strong>PALYNZIQ's adolescent PEGASUS data continues gaining field traction post-ICIEM 2025</strong>, while VOXZOGO's March 2026 trial discontinuation is still working through provider conversations. Updated 24 min ago.</span>
+  <button class="signal-dismiss" onclick="dismissSignal()">&#215;</button>
+</div>
+
+<!-- TOPBAR -->
+<header id="topbar">
+  <div class="topbar-left">
+    <div class="topbar-wordmark"><span class="wordmark-dot"></span>Pulse</div>
+  </div>
+  <span id="topbarCenter">Morning Brief</span>
+  <div class="topbar-right">
+    <span class="chip">BioMarin Pharmaceutical</span>
+    <span class="chip">Medical Affairs</span>
+    <span class="topbar-date">Aug 15, 2026 &middot; 7:00 AM PT</span>
+    <button class="btn-listen" id="listen-btn" onclick="openAudio()">
+      <span class="listen-dot"></span>&#9654;&nbsp;Listen
+    </button>
+  </div>
+</header>
+
+<!-- SIDEBAR TOGGLE -->
+<button id="sidebar-toggle" onclick="toggleSidebar()">&#8249;</button>
+
+<!-- SIDEBAR -->
+<nav id="sidebar">
+  <div class="sidebar-inner">
+
+    <div class="sidebar-section-label">This Week</div>
+
+    <div class="brief-card active" onclick="switchBrief(this, 'palynziq-adolescent')">
+      <span class="new-dot"></span>
+      <div class="brief-card-title">PALYNZIQ's Adolescent Win: PEGASUS Clears the Field's Highest Bar Yet for Pegvaliase</div>
+      <div class="brief-card-meta">MO2 &middot; PKU &middot; Elevated Momentum</div>
+    </div>
+
+    <div class="brief-card" onclick="switchBrief(this, 'sephience-threat')">
+      <span class="new-dot"></span>
+      <div class="brief-card-title">Sephience Is Approved and Oral. KUVAN's Defense Can't Be Nostalgia.</div>
+      <div class="brief-card-meta">MO1 &middot; PKU &middot; Competitive</div>
+    </div>
+
+    <div class="brief-card" onclick="switchBrief(this, 'voxzogo-scfe')">
+      <div class="brief-card-title">VOXZOGO's Turner/SHOX/ACAN Pause: What &gt;5,000 Achondroplasia Patients Can and Cannot Tell You</div>
+      <div class="brief-card-meta">MO5 &middot; Skeletal &middot; Safety Signal</div>
+    </div>
+
+    <div class="brief-card" onclick="switchBrief(this, 'ascendis-mohnike')">
+      <div class="brief-card-title">Navepegritide's PDUFA Clock Is Running, and Dr. Mohnike Is Watching It Closely</div>
+      <div class="brief-card-meta">MO5 &middot; Skeletal &middot; KOL Sentiment</div>
+    </div>
+
+    <div class="brief-card" onclick="switchBrief(this, 'roctavian-exit')">
+      <div class="brief-card-title">ROCTAVIAN's US Exit: The Honest Version of a Hard Story</div>
+      <div class="brief-card-meta">MO6 &middot; Hemophilia A &middot; Strategic Pivot</div>
+    </div>
+
+    <div class="brief-card" onclick="switchBrief(this, 'aldurazyme-comarketing')">
+      <div class="brief-card-title">Aldurazyme Isn't Ours to Oversell: Getting the Sanofi-Genzyme Line Right</div>
+      <div class="brief-card-meta">MO3 &middot; MPS &middot; Field Precision</div>
+    </div>
+
+    <div class="sidebar-rule"></div>
+
+    <div class="sidebar-section-label">Intelligence</div>
+    <div class="nav-item active" id="nav-brief" onclick="showView('brief', this, 'Morning Brief')"><span class="nav-icon">&#9632;</span> Morning Brief</div>
+    <div class="nav-item" id="nav-narrative" onclick="showView('narrative', this, 'Narrative Map')"><span class="nav-icon">&#9685;</span> Narrative Map</div>
+    <div class="nav-item" id="nav-velocity" onclick="showView('velocity', this, 'Signal Velocity')"><span class="nav-icon">&#8599;</span> Signal Velocity</div>
+    <div class="nav-item" id="nav-integration" onclick="showView('integration', this, 'Platform Integration')"><span class="nav-icon">&#9675;</span> Platform Integration</div>
+
+    <div class="sidebar-rule"></div>
+
+    <div class="sidebar-section-label">Platform</div>
+    <a class="nav-item" href="/" target="_blank" rel="noopener noreferrer"><span class="nav-icon">&#8599;</span> Link to Aurivian</a>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<main id="main">
+
+  <!-- ══ VIEW: MORNING BRIEF ══════════════════════ -->
+  <div id="view-brief" class="view active">
+
+  <!-- ── BRIEF 1: PALYNZIQ Adolescent (Hero) ── -->
+  <div id="brief-palynziq-adolescent" class="brief-content active" style="max-width:800px;margin:0 auto;padding:28px 36px 90px;">
+
+    <div class="brief-eyebrow">
+      <span class="tag tag-outline">Intelligence Brief</span>
+      <span class="tag tag-product">PALYNZIQ &middot; Adolescent PEGASUS Data</span>
+      <span class="eyebrow-date">August 15, 2026 &middot; 7:00 AM PT</span>
+    </div>
+
+    <h1 class="brief-headline">
+      PEGASUS didn't just extend PALYNZIQ's label to adolescents. <em>It gave BioMarin's PKU franchise its strongest field story in years, right as Sephience's oral convenience narrative starts pulling attention toward KUVAN.</em>
+    </h1>
+
+    <p class="brief-lede">The 2026 FDA approval of PALYNZIQ (pegvaliase-pqpz) for adolescents 12&ndash;17 rests on genuinely strong pivotal data: the PEGASUS Phase 3 trial (55 adolescents) showed blood phenylalanine reduced by 473 &micro;mol/L versus 19 &micro;mol/L for diet alone at week 72, first presented at ICIEM 2025 in Kyoto. This is the kind of unambiguous efficacy story Medical Affairs teams wait years for, and MO2's Sufficient coverage rating reflects real field momentum. The open question isn't whether the data is strong &mdash; it's whether initiation habits built around the adult label transfer cleanly to a population with different anaphylaxis-monitoring and dose-escalation realities.</p>
+
+    <div class="brief-meta">
+      <div class="meta-item"><span class="meta-label">Product Focus</span><span class="meta-value">PALYNZIQ (pegvaliase-pqpz)</span></div>
+      <div class="meta-item"><span class="meta-label">Medical Objective</span><span class="meta-value dim">MO2 (Sufficient)</span></div>
+      <div class="meta-item"><span class="meta-label">Urgency</span><span class="meta-value warn">&#9679; Elevated &middot; New Adolescent Prescribing Window Open</span></div>
+      <div class="meta-item"><span class="meta-label">Congress Anchor</span><span class="meta-value dim">ICIEM 2025, Kyoto</span></div>
+    </div>
+
+    <div class="summary-box">
+      <div class="summary-label">&#9679; Pulse Summary &middot; 3 Active Signals</div>
+      <p class="summary-body"><strong>The central tension:</strong> PEGASUS gives pediatric geneticists and endocrinologists a clean, uncontested efficacy story right as PTC Therapeutics' Sephience (sepiapterin) enters the broader PKU conversation with an oral, once-daily convenience narrative aimed at the BH4-responsive population. PALYNZIQ and Sephience are not actually competing for the same patients &mdash; PALYNZIQ addresses BH4-non-responsive PKU that diet alone cannot control, while Sephience targets BH4-responsive patients currently on or eligible for KUVAN &mdash; but field conversations are already starting to blur that line. The job this week is to let PALYNZIQ's adolescent win stand fully on its own while making sure the field can draw the BH4-responsiveness distinction cleanly when both drugs come up in the same appointment.</p>
+    </div>
+
+    <!-- PKU / Biochemical Genetics -->
+    <div class="brief-section" style="animation-delay:0.05s">
+      <div class="community-marker"><span class="cm-dot" style="background:var(--teal)"></span><span class="cm-rule"></span><span class="cm-label" style="color:var(--teal)">Providers &middot; Pediatric Genetics/Endocrinology</span></div>
+      <span class="signal-pill sp-teal">&#8593;&#8593; Accelerating Signal &middot; Adolescent Initiation Interest</span>
+      <h2 class="section-h2 c-teal">PEGASUS clears the highest bar a pegvaliase trial has ever cleared. <em>The field's next question isn't efficacy &mdash; it's dose-escalation confidence in a younger population.</em></h2>
+      <p class="section-body">A &minus;473 vs. &minus;19 &micro;mol/L blood-Phe reduction at week 72 against diet alone is not a marginal result &mdash; it is the kind of separation that makes an initiation conversation easy on the efficacy side. Jerry Vockley (University of Pittsburgh / UPMC Children's Hospital of Pittsburgh) and Stephanie Sacharow (Boston Children's Hospital / Harvard Medical School, dual PKU/lysosomal focus and a PEGASUS adolescent trial author) are the two highest-value voices for this specific data, with Nicola Longo (University of Utah) and Cary Harding (OHSU) as strong secondary anchors for regional field coverage. MSL debriefs since ICIEM 2025 describe real prescriber enthusiasm, tempered by one consistent, legitimate question: pegvaliase's anaphylaxis-monitoring and dose-escalation protocol was built and refined on an adult population, and pediatric geneticists want explicit confirmation the same escalation cadence and observation windows apply cleanly to a 12-year-old versus a 30-year-old.</p>
+      <p class="section-body">That question matters because it's the actual rate-limiting step between "I believe the data" and "I'm writing the first adolescent prescription." Field materials built for adult initiation don't automatically answer a pediatric-specific dosing question, and leaving it unanswered risks a slower ramp than the strength of the underlying data would otherwise predict.</p>
+      <div class="pull-quote c-teal">
+        <p class="pull-quote-text">"The efficacy numbers aren't in question for me anymore. What I need before I start my first 13-year-old is confidence that the escalation schedule and anaphylaxis monitoring we use in adults doesn't need to be different here."</p>
+        <span class="pull-quote-cite">Pediatric geneticist &middot; Regional academic center &middot; July 2026</span>
+      </div>
+      <table class="comp-matrix">
+        <thead><tr><th>PEGASUS Endpoint (Week 72)</th><th>PALYNZIQ + Diet</th><th>Diet Alone</th></tr></thead>
+        <tbody>
+          <tr class="hl"><td>Blood phenylalanine reduction</td><td class="chk">&minus;473 &micro;mol/L ✓</td><td>&minus;19 &micro;mol/L</td></tr>
+          <tr><td>Trial population</td><td colspan="2">55 adolescents, ages 12&ndash;17</td></tr>
+        </tbody>
+      </table>
+      <div class="sources">
+        <span class="source-chip">PEGASUS Phase 3, ICIEM 2025, Kyoto</span>
+        <span class="source-chip">FDA adolescent approval, PALYNZIQ, 2026</span>
+      </div>
+      <div class="fvq">
+        <div class="fvq-label">&#8594; Field Validation Question</div>
+        <p class="fvq-text">Among pediatric geneticists who have not yet initiated an adolescent on PALYNZIQ, is the primary hesitation dosing/monitoring confidence specifically &mdash; and if so, does a dedicated adolescent dose-escalation quick-reference (distinct from the adult protocol document) measurably shorten time-to-first-prescription in the next quarter?</p>
+      </div>
+      <div class="action-bar">
+        <button class="act-btn act-defend" onclick="openPanel('defend','palynziq')">Defend This</button>
+        <button class="act-btn act-forecast" onclick="openPanel('forecast','palynziq')">What Does This Foretell?</button>
+        <button class="act-btn act-flag" onclick="void(0)">Flag for Field Medical</button>
+        <button class="act-btn act-flag" onclick="void(0)">Draft Talking Points</button>
+      </div>
+    </div>
+
+    <div class="section-rule"></div>
+
+    <!-- Patients -->
+    <div class="brief-section" style="animation-delay:0.10s">
+      <div class="community-marker"><span class="cm-dot" style="background:var(--sage)"></span><span class="cm-rule"></span><span class="cm-label" style="color:var(--sage)">Patients &middot; PKU Families</span></div>
+      <span class="signal-pill sp-sage">&#9679; New Narrative &middot; Dietary Freedom for a Population Diet Never Fully Controlled</span>
+      <h2 class="section-h2 c-sage">For BH4-non-responsive adolescents, PALYNZIQ isn't a second-line option. <em>It's the first therapy that has ever meaningfully moved their blood Phe.</em></h2>
+      <p class="section-body">The patient-community reaction to the adolescent approval is distinct from a typical label expansion, because this population had no pharmacologic option before &mdash; diet alone was the only lever, and the PEGASUS diet-alone comparator arm's &minus;19 &micro;mol/L result is a quiet but pointed illustration of how limited that lever actually is for BH4-non-responsive patients. Patient-advocacy channels are surfacing cautious optimism mixed with real, practical questions about the self-injection burden and titration timeline for a teenager rather than an adult, particularly around school and social-context injection logistics.</p>
+      <div class="pull-quote c-sage">
+        <p class="pull-quote-text">"We've done the diet perfectly for years and her numbers never really moved. Hearing there's finally something that might actually work for her age group is the first real hope we've had."</p>
+        <span class="pull-quote-cite">Parent, PKU patient advocacy forum &middot; July 2026</span>
+      </div>
+      <div class="fvq">
+        <div class="fvq-label">&#8594; Field Validation Question</div>
+        <p class="fvq-text">What specific school- and social-context injection-logistics questions are adolescent patients and families raising in the first 90 days after initiation, and does a teen-specific (not adult-adapted) patient support resource reduce early discontinuation risk during dose escalation?</p>
+      </div>
+    </div>
+
+    <div class="section-rule"></div>
+
+    <!-- Competitive -->
+    <div class="brief-section" style="animation-delay:0.15s">
+      <div class="community-marker"><span class="cm-dot" style="background:var(--rose)"></span><span class="cm-rule"></span><span class="cm-label" style="color:var(--rose)">Competitive &middot; PKU Landscape</span></div>
+      <span class="signal-pill sp-rose">&rarr; Stable &middot; Sephience Occupies a Different Population, But the Field Doesn't Always Say So</span>
+      <h2 class="section-h2 c-rose">PALYNZIQ's momentum is real and uncontested. <em>The risk is letting Sephience's oral-competitor noise blur a population distinction that should be easy to make cleanly.</em></h2>
+      <p class="section-body">PTC Therapeutics' Sephience (sepiapterin), FDA-approved July 28, 2025 (also EU and Japan), is a genuine and current oral competitor &mdash; but it competes against KUVAN in the BH4-responsive population, not against PALYNZIQ. PALYNZIQ addresses BH4-non-responsive PKU where diet alone is insufficient, a biologically distinct population. The risk to this week's hero story isn't a direct competitive threat to PALYNZIQ itself; it's that Sephience's approval is generating enough general PKU-treatment-landscape conversation that some field interactions are treating "new oral PKU therapy" as one undifferentiated category, when clinicians actually need two separate frameworks depending on BH4-responsiveness status.</p>
+      <div class="fvq">
+        <div class="fvq-label">&#8594; Field Validation Question</div>
+        <p class="fvq-text">In appointments where both PALYNZIQ's adolescent data and Sephience's approval come up in the same conversation, do MSLs find prescribers already correctly separating the two populations by BH4-responsiveness, or is that distinction something the field needs to actively reinforce before it hardens into confusion?</p>
+      </div>
+      <div class="action-bar">
+        <button class="act-btn act-defend" onclick="openPanel('defend','palynziq')">Defend This</button>
+        <button class="act-btn act-forecast" onclick="openPanel('forecast','palynziq')">What Does This Foretell?</button>
+        <button class="act-btn act-flag" onclick="void(0)">Flag for Medical Information</button>
+      </div>
+    </div>
+
+    <div class="bottom-line">
+      <div class="bottom-line-header"><span class="bottom-line-label">&#9632; The Bottom Line &middot; 3 Things That Need to Happen Now</span></div>
+      <div class="bottom-line-items">
+        <div class="bottom-line-item"><span class="bl-num">01</span><span class="bl-text"><strong>Ship a pediatric-specific dose-escalation and anaphylaxis-monitoring quick-reference</strong> distinct from the adult protocol document &mdash; the efficacy story has already landed; dosing confidence is the actual remaining barrier to first prescriptions.</span></div>
+        <div class="bottom-line-item"><span class="bl-num">02</span><span class="bl-text"><strong>Prioritize Dr. Vockley and Dr. Sacharow engagement</strong> as the strongest available voices on the PEGASUS adolescent dataset, with Dr. Longo and Dr. Harding covering regional depth.</span></div>
+        <div class="bottom-line-item"><span class="bl-num">03</span><span class="bl-text"><strong>Give the field an explicit BH4-responsiveness decision framework</strong> that separates the PALYNZIQ and Sephience/KUVAN conversations cleanly, before general "new oral PKU therapy" chatter blurs a distinction that should be simple to hold.</span></div>
+      </div>
+    </div>
+
+    <div class="brief-footer">
+      <div>
+        <p class="footer-sources">Sources: PEGASUS Phase 3, ICIEM 2025, Kyoto; FDA adolescent approval, PALYNZIQ, 2026; PTC Therapeutics Sephience FDA approval, Jul 2025; Dr. Jerry Vockley, Dr. Stephanie Sacharow public trial leadership.</p>
+        <p class="footer-disc">No proprietary BioMarin data used. Prepared by Aurivian Medical Intelligence for internal Medical Affairs use only.</p>
+      </div>
+      <div class="footer-actions">
+        <button class="footer-btn">Share Brief</button>
+        <button class="footer-btn primary">Go Deeper &rarr;</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── BRIEF 2: Sephience Threat ── -->
+  <div id="brief-sephience-threat" class="brief-content" style="max-width:800px;margin:0 auto;padding:28px 36px 90px;">
+
+    <div class="brief-eyebrow">
+      <span class="tag tag-outline">Intelligence Brief</span>
+      <span class="tag tag-alert">Competitive Signal</span>
+      <span class="tag tag-product">KUVAN &middot; Sephience (PTC Therapeutics)</span>
+      <span class="eyebrow-date">August 8, 2026 &middot; 7:00 AM PT</span>
+    </div>
+
+    <h1 class="brief-headline">
+      Sephience isn't a rumor anymore. <em>It's an approved, oral, once-daily competitor in three major markets, and KUVAN's defense needs to be about BH4-responsiveness science, not familiarity.</em>
+    </h1>
+
+    <p class="brief-lede">PTC Therapeutics' Sephience (sepiapterin) received FDA approval July 28, 2025, with EU and Japan approvals following &mdash; a genuine, current oral competitor to KUVAN (sapropterin dihydrochloride) in the BH4-responsive PKU population. MO1's Low coverage rating is a fair reflection of where the field actually stands: this is a real threat, not a hypothetical one, and prescribers weighing a switch for stable patients are asking legitimate questions about what, specifically, differentiates a synthetic BH4 cofactor from a BH4-precursor/activator with a different mechanism and dosing profile.</p>
+
+    <div class="brief-meta">
+      <div class="meta-item"><span class="meta-label">Product Focus</span><span class="meta-value">KUVAN (sapropterin dihydrochloride)</span></div>
+      <div class="meta-item"><span class="meta-label">Medical Objective</span><span class="meta-value dim">MO1 (Low)</span></div>
+      <div class="meta-item"><span class="meta-label">Competitive Event</span><span class="meta-value warn">&#9679; Approved Competitor &middot; US/EU/Japan, 2025</span></div>
+      <div class="meta-item"><span class="meta-label">Congress Watch</span><span class="meta-value dim">WORLDSymposium 2027</span></div>
+    </div>
+
+    <div class="summary-box">
+      <div class="summary-label">&#9679; Pulse Summary</div>
+      <p class="summary-body"><strong>The strategic picture:</strong> Sephience's pitch is convenience &mdash; a once-daily oral option is a genuinely attractive proposition for a chronic pediatric-onset condition. The mistake in defending KUVAN would be leading with tenure or familiarity, which is not a scientific argument and will not hold up in a sophisticated prescriber conversation. The stronger, honest defense is BH4-responsiveness testing rigor and the depth of KUVAN's long-term real-world safety and dosing-titration experience &mdash; a track record Sephience does not yet have.</p>
+    </div>
+
+    <div class="brief-section" style="animation-delay:0.05s">
+      <h2 class="section-h2">The switching conversation is happening now, for stable patients, on convenience grounds. <em>The field needs a substantive answer, not a defensive one.</em></h2>
+      <p class="section-body">MSL field reports describe prescribers actively fielding patient and family questions about switching stable, well-controlled KUVAN patients to Sephience purely on the basis of a simpler dosing regimen. That's a legitimate patient-experience consideration BioMarin cannot dismiss, but it is not, on its own, a clinical reason to switch a stable patient off a therapy that is working. Jerry Vockley, Nicola Longo, Cary Harding, and Harvey Levy (the PKU/biochemical genetics roster) remain the strongest available voices for grounding this conversation in BH4-responsiveness testing precision and KUVAN's long-term titration and safety dataset, which is deeper than any newly-approved agent's real-world experience can currently match. The honest field position is not "don't consider Sephience" &mdash; it's "confirm BH4-responsiveness rigorously and weigh convenience against a therapy with a substantially longer real-world track record before switching a stable patient."</p>
+      <div class="pull-quote">
+        <p class="pull-quote-text">"My patient's family is asking why they can't just switch to the once-daily option now that it's approved. I don't have a great answer beyond 'let's not fix what isn't broken' &mdash; and that's not going to satisfy a sophisticated family for long."</p>
+        <span class="pull-quote-cite">Pediatric geneticist &middot; Community academic center &middot; July 2026</span>
+      </div>
+      <table class="comp-matrix">
+        <thead><tr><th></th><th>KUVAN</th><th>Sephience</th></tr></thead>
+        <tbody>
+          <tr class="hl"><td>Mechanism</td><td class="chk">Synthetic BH4 cofactor ✓</td><td>BH4 precursor/PAH activator</td></tr>
+          <tr><td>Real-world track record</td><td class="chk">Long-standing, extensive ✓</td><td>New, limited (approved 2025)</td></tr>
+          <tr><td>Population</td><td colspan="2">BH4-responsive PKU (both)</td></tr>
+        </tbody>
+      </table>
+      <div class="sources">
+        <span class="source-chip">FDA approval, Sephience, Jul 2025</span>
+        <span class="source-chip">EU/Japan approvals, Sephience, 2025</span>
+      </div>
+      <div class="fvq">
+        <div class="fvq-label">&#8594; Field Validation Question</div>
+        <p class="fvq-text">Among stable KUVAN patients whose families raise a Sephience-switch question, how many are proceeding with a switch versus continuing on KUVAN once BH4-responsiveness testing rigor and long-term titration data are discussed explicitly &mdash; and does that ratio shift over the next two quarters as Sephience accumulates its own real-world experience?</p>
+      </div>
+    </div>
+
+    <div class="bottom-line">
+      <div class="bottom-line-header"><span class="bottom-line-label">&#9632; Bottom Line &middot; 2 Actions</span></div>
+      <div class="bottom-line-items">
+        <div class="bottom-line-item"><span class="bl-num">01</span><span class="bl-text"><strong>Build a KUVAN-vs-Sephience clinical comparison card grounded in BH4-responsiveness testing and long-term titration data</strong>, not tenure or familiarity &mdash; the field needs a scientific answer to a legitimate convenience question.</span></div>
+        <div class="bottom-line-item"><span class="bl-num">02</span><span class="bl-text"><strong>Equip MSLs to acknowledge Sephience's convenience appeal directly</strong> rather than avoiding the comparison, since prescribers already field it from patients and a defensive posture reads as evasive.</span></div>
+      </div>
+    </div>
+
+    <div class="brief-footer">
+      <div>
+        <p class="footer-sources">Sources: FDA approval, Sephience (sepiapterin), Jul 2025; PTC Therapeutics EU/Japan approvals, 2025; PKU/biochemical genetics KOL roster public affiliations.</p>
+        <p class="footer-disc">No proprietary BioMarin data used. Prepared by Aurivian Medical Intelligence for internal Medical Affairs use only.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── BRIEF 3: VOXZOGO SCFE Safety Signal ── -->
+  <div id="brief-voxzogo-scfe" class="brief-content" style="max-width:800px;margin:0 auto;padding:28px 36px 90px;">
+
+    <div class="brief-eyebrow">
+      <span class="tag tag-outline">Intelligence Brief</span>
+      <span class="tag tag-alert">Safety Signal</span>
+      <span class="tag tag-product">VOXZOGO &middot; Turner/SHOX/ACAN Discontinuation</span>
+      <span class="eyebrow-date">July 30, 2026 &middot; 7:00 AM PT</span>
+    </div>
+
+    <h1 class="brief-headline">
+      VOXZOGO's March 2026 discontinuation in Turner, SHOX, and ACAN trials is real and should be discussed as such. <em>But it is a signal in investigator-sponsored trials outside achondroplasia &mdash; not a finding in the &gt;5,000-patient dataset the field actually prescribes against.</em>
+    </h1>
+
+    <p class="brief-lede">In March 2026, BioMarin discontinued dosing and enrollment in the Turner syndrome, SHOX deficiency, and ACAN-deficiency CANOPY trials after slipped capital femoral epiphysis (SCFE) events occurred in two investigator-sponsored trials. This is a genuine, disclosed safety finding, and MO5's Low coverage rating reflects an honest field-readiness gap in discussing it precisely. The credibility test for Medical Affairs is stating the fact plainly &mdash; not minimizing it &mdash; while being equally precise that no SCFE cases have occurred in BioMarin-sponsored achondroplasia trials spanning more than 5,000 patients, and that Noonan syndrome and idiopathic short stature (non-ACAN) trials continue.</p>
+
+    <div class="brief-meta">
+      <div class="meta-item"><span class="meta-label">Product Focus</span><span class="meta-value">VOXZOGO (vosoritide)</span></div>
+      <div class="meta-item"><span class="meta-label">Medical Objective</span><span class="meta-value dim">MO5 (Low)</span></div>
+      <div class="meta-item"><span class="meta-label">Safety Event</span><span class="meta-value warn">&#9679; Trial Discontinuation &middot; Mar 2026</span></div>
+      <div class="meta-item"><span class="meta-label">Congress Watch</span><span class="meta-value dim">ENDO 2026</span></div>
+    </div>
+
+    <div class="summary-box">
+      <div class="summary-label">&#9679; Pulse Summary</div>
+      <p class="summary-body"><strong>The strategic picture:</strong> This is a case where overclaiming safety in either direction damages credibility. Understating the Turner/SHOX/ACAN finding erodes trust the first time a prescriber checks the source; overstating its relevance to achondroplasia &mdash; VOXZOGO's approved, actively prescribed indication &mdash; creates unwarranted hesitation in patients who have nothing to do with the discontinued trial populations. The honest field position holds both facts at once, precisely scoped.</p>
+    </div>
+
+    <div class="brief-section" style="animation-delay:0.05s">
+      <h2 class="section-h2">Precision about trial population is the entire game here. <em>The field's job is naming exactly which patients this signal does and does not apply to.</em></h2>
+      <p class="section-body">The SCFE events occurred in investigator-sponsored trials in Turner syndrome, SHOX deficiency, and ACAN-deficiency populations &mdash; not in BioMarin-sponsored achondroplasia trials. Skeletal-conditions KOLs with strong US registry-data depth are the right anchors for this conversation. Barbara Burton's (Ann & Robert H. Lurie Children's Hospital / Northwestern Feinberg) registry-data depth positions her as a strong US voice for grounding SCFE conversations specifically in the BioMarin-sponsored achondroplasia dataset rather than the discontinued trials. Ravi Savarirayan (Murdoch Children's Research Institute), lead investigator on the vosoritide pivotal trial and consensus guidelines, and Julie Hoover-Fong (Johns Hopkins, Greenberg Center for Skeletal Dysplasias) round out the strongest voices for precise, source-grounded safety conversations. MSL debriefs indicate the field is broadly aware of the discontinuation but not always precise about which populations it involves &mdash; some prescriber conversations have surfaced unprompted concern about achondroplasia patients who were never part of the affected trials.</p>
+      <div class="pull-quote">
+        <p class="pull-quote-text">"A family asked me directly if VOXZOGO now has an SCFE warning. I had to walk them through that the discontinued trials weren't in achondroplasia at all &mdash; but I want a source I can point to, not just my own explanation."</p>
+        <span class="pull-quote-cite">Pediatric endocrinologist &middot; Community practice &middot; June 2026</span>
+      </div>
+      <table class="comp-matrix">
+        <thead><tr><th>Trial Population</th><th>SCFE Signal</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Turner syndrome / SHOX / ACAN-deficiency (investigator-sponsored)</td><td class="crs">Observed, 2 trials</td><td class="crs">Dosing/enrollment discontinued, Mar 2026</td></tr>
+          <tr class="hl"><td>Achondroplasia (BioMarin-sponsored, &gt;5,000 patients)</td><td class="chk">None observed ✓</td><td class="chk">Approved indication, ongoing</td></tr>
+          <tr><td>Noonan syndrome / idiopathic short stature (non-ACAN)</td><td>None observed</td><td>Trials continue</td></tr>
+        </tbody>
+      </table>
+      <div class="sources">
+        <span class="source-chip">BioMarin CANOPY trial discontinuation disclosure, Mar 2026</span>
+        <span class="source-chip">Vosoritide achondroplasia pivotal + long-term safety dataset</span>
+      </div>
+      <div class="fvq">
+        <div class="fvq-label">&#8594; Field Validation Question</div>
+        <p class="fvq-text">When achondroplasia-treating endocrinologists raise unprompted SCFE concerns, do they already understand the discontinuation was scoped to Turner/SHOX/ACAN trials &mdash; or is that population distinction something the field still needs to actively clarify, and does a one-page source-grounded reference measurably reduce repeat versions of the same question?</p>
+      </div>
+      <div class="action-bar">
+        <button class="act-btn act-defend" onclick="openPanel('defend','voxzogo')">Defend This</button>
+        <button class="act-btn act-forecast" onclick="openPanel('forecast','voxzogo')">What Does This Foretell?</button>
+        <button class="act-btn act-flag" onclick="void(0)">Flag for Pharmacovigilance</button>
+      </div>
+    </div>
+
+    <div class="bottom-line">
+      <div class="bottom-line-header"><span class="bottom-line-label">&#9632; Bottom Line &middot; 2 Actions</span></div>
+      <div class="bottom-line-items">
+        <div class="bottom-line-item"><span class="bl-num">01</span><span class="bl-text"><strong>Distribute a single, source-grounded reference distinguishing the discontinued Turner/SHOX/ACAN trials from the &gt;5,000-patient achondroplasia safety dataset</strong> so MSLs and prescribers aren't reconstructing the distinction from memory in every conversation.</span></div>
+        <div class="bottom-line-item"><span class="bl-num">02</span><span class="bl-text"><strong>Prioritize Dr. Burton, Dr. Savarirayan, and Dr. Hoover-Fong engagement</strong> for their registry-data depth and pivotal-trial authority on the achondroplasia-specific safety record.</span></div>
+      </div>
+    </div>
+
+    <div class="brief-footer">
+      <div>
+        <p class="footer-sources">Sources: BioMarin CANOPY (Turner/SHOX/ACAN) trial discontinuation disclosure, Mar 2026; vosoritide achondroplasia pivotal and long-term safety dataset (&gt;5,000 patients); Dr. Ravi Savarirayan, Dr. Barbara Burton, Dr. Julie Hoover-Fong public trial leadership.</p>
+        <p class="footer-disc">No proprietary BioMarin data used. Prepared by Aurivian Medical Intelligence for internal Medical Affairs use only.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── BRIEF 4: Ascendis / Mohnike Divergence ── -->
+  <div id="brief-ascendis-mohnike" class="brief-content" style="max-width:800px;margin:0 auto;padding:28px 36px 90px;">
+
+    <div class="brief-eyebrow">
+      <span class="tag tag-outline">Intelligence Brief</span>
+      <span class="tag tag-alert">KOL Sentiment Signal</span>
+      <span class="tag tag-product">VOXZOGO &middot; BMN 333 &middot; Ascendis Navepegritide</span>
+      <span class="eyebrow-date">July 22, 2026 &middot; 7:00 AM PT</span>
+    </div>
+
+    <h1 class="brief-headline">
+      Dr. Klaus Mohnike hasn't gone negative on VOXZOGO. <em>But as Ascendis's navepegritide moves toward its EU decision, his attention is visibly, defensibly shifting &mdash; and BMN 333 is BioMarin's answer to exactly this moment.</em>
+    </h1>
+
+    <p class="brief-lede">Ascendis Pharma's navepegritide (TransCon CNP), a once-weekly CNP prodrug, met its primary endpoint in the pivotal ApproaCH trial and is under US NDA review (PDUFA extended to February 28, 2026) with an EU decision expected Q4 2026. Klaus Mohnike (Otto-von-Guericke University Magdeburg), a Tier 2 European skeletal-dysplasia KOL, has shown a defensible, timeline-driven sentiment cooling: more attentive congress questioning and follow-up correspondence tracking navepegritide's data as the EU decision approaches, not a rupture with VOXZOGO. This is exactly the kind of signal Pulse exists to surface before it becomes a field-visible gap.</p>
+
+    <div class="brief-meta">
+      <div class="meta-item"><span class="meta-label">Product Focus</span><span class="meta-value">VOXZOGO &middot; BMN 333</span></div>
+      <div class="meta-item"><span class="meta-label">Medical Objective</span><span class="meta-value dim">MO5 (Low)</span></div>
+      <div class="meta-item"><span class="meta-label">KOL Watch</span><span class="meta-value warn">&#9679; Klaus Mohnike, MD &middot; Tier 2 &middot; Magdeburg, Germany</span></div>
+      <div class="meta-item"><span class="meta-label">Competitive Timeline</span><span class="meta-value dim">EU Decision, Navepegritide &middot; Q4 2026</span></div>
+    </div>
+
+    <div class="summary-box">
+      <div class="summary-label">&#9679; Pulse Summary</div>
+      <p class="summary-body"><strong>The strategic picture:</strong> Dr. Mohnike's attention shift is the kind of signal that shows up in congress commentary and follow-up correspondence well before it would ever surface in prescribing data &mdash; the entire premise of a leading-indicator brief. The correct response isn't a defensive re-engagement that treats him as lost; it's a proactive, substantive BMN 333 scientific exchange that meets his genuine interest in next-generation CNP-analog dosing head-on before Ascendis's EU decision lands and narrows the window.</p>
+    </div>
+
+    <div class="brief-section" style="animation-delay:0.05s">
+      <h2 class="section-h2">A European regulatory clock is the honest explanation here. <em>Treating this as disloyalty would be the wrong read &mdash; and the wrong response.</em></h2>
+      <p class="section-body">At ESPE/ESE 2025 in Copenhagen &mdash; where BioMarin presented VOXZOGO data alongside Ascendis's own navepegritide presentation, a genuine head-to-head congress moment &mdash; a colleague observed Dr. Mohnike asking unusually detailed follow-up questions in the navepegritide session, more than would be expected from someone purely VOXZOGO-aligned. A subsequent MSL interaction in Magdeburg in June 2026 confirmed the pattern: he remains engaged and not negative on VOXZOGO, but is clearly tracking the once-weekly dosing conversation closely as the EU filing timeline nears. This tracks a defensible clinical-interest logic &mdash; a European skeletal-dysplasia specialist watching a competing once-weekly CNP analog move through EU regulatory review is doing exactly what a rigorous clinician should do, not signaling defection.</p>
+      <p class="section-body">BMN 333, BioMarin's long-acting CNP successor to vosoritide, is the direct, substantive answer to this interest: Phase 1 healthy-adult data was positive for weekly dosing, and a Phase 2/3 registration-enabling study comparing it against vosoritide has been enrolling since April 2025, with a data update expected in 2027 and early data anticipated at ENDO 2026. The opportunity here is narrow but real &mdash; a proactive BMN 333 scientific exchange with Dr. Mohnike before the EU navepegritide decision lands, engaging his stated interest directly rather than waiting to react to it.</p>
+      <div class="pull-quote">
+        <p class="pull-quote-text">"He's not negative on VOXZOGO, but he's clearly tracking the once-weekly dosing conversation closely as the EU filing timeline gets nearer."</p>
+        <span class="pull-quote-cite">Field Medical, Continental Europe &middot; Magdeburg, Germany &middot; June 2026</span>
+      </div>
+      <div class="sources">
+        <span class="source-chip">ESPE/ESE Joint Congress 2025, Copenhagen</span>
+        <span class="source-chip">Navepegritide ApproaCH pivotal trial, PDUFA Feb 2026</span>
+        <span class="source-chip">BMN 333 Phase 1 data; Phase 2/3 enrollment since Apr 2025</span>
+      </div>
+      <div class="fvq">
+        <div class="fvq-label">&#8594; Field Validation Question</div>
+        <p class="fvq-text">Does a proactive BMN 333 scientific-exchange conversation with Dr. Mohnike &mdash; positioned before, not after, the Q4 2026 EU navepegritide decision &mdash; measurably stabilize his engagement pattern relative to a comparable Tier 2 European KOL who does not receive the same early exchange?</p>
+      </div>
+      <div class="action-bar">
+        <button class="act-btn act-defend" onclick="openPanel('defend','voxzogo')">Defend This</button>
+        <button class="act-btn act-forecast" onclick="openPanel('forecast','voxzogo')">What Does This Foretell?</button>
+        <button class="act-btn act-flag" onclick="void(0)">Flag for Field Medical</button>
+      </div>
+    </div>
+
+    <div class="bottom-line">
+      <div class="bottom-line-header"><span class="bottom-line-label">&#9632; Bottom Line &middot; 2 Actions</span></div>
+      <div class="bottom-line-items">
+        <div class="bottom-line-item"><span class="bl-num">01</span><span class="bl-text"><strong>Schedule a proactive BMN 333 scientific exchange with Dr. Mohnike before Q4 2026</strong>, engaging his documented interest in once-weekly CNP-analog dosing directly rather than waiting for the EU decision to force a reactive conversation.</span></div>
+        <div class="bottom-line-item"><span class="bl-num">02</span><span class="bl-text"><strong>Treat this as a timeline-driven attention shift, not a sentiment rupture</strong>, in all internal reporting &mdash; overreacting risks a defensive posture that reads poorly to a rigorous clinician doing exactly what due diligence looks like.</span></div>
+      </div>
+    </div>
+
+    <div class="brief-footer">
+      <div>
+        <p class="footer-sources">Sources: ESPE/ESE Joint Congress 2025, Copenhagen; Ascendis Pharma navepegritide ApproaCH pivotal trial and NDA/EU filing status; BMN 333 Phase 1/Phase 2-3 program status.</p>
+        <p class="footer-disc">No proprietary BioMarin data used. Prepared by Aurivian Medical Intelligence for internal Medical Affairs use only.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── BRIEF 5: ROCTAVIAN US Exit ── -->
+  <div id="brief-roctavian-exit" class="brief-content" style="max-width:800px;margin:0 auto;padding:28px 36px 90px;">
+
+    <div class="brief-eyebrow">
+      <span class="tag tag-outline">Intelligence Brief</span>
+      <span class="tag tag-product">ROCTAVIAN &middot; US Market Withdrawal</span>
+      <span class="eyebrow-date">July 15, 2026 &middot; 7:00 AM PT</span>
+    </div>
+
+    <h1 class="brief-headline">
+      ROCTAVIAN's US exit isn't a story to spin. <em>It's a story to navigate honestly &mdash; and the field's credibility with ex-US treaters depends on how well BioMarin tells it.</em>
+    </h1>
+
+    <p class="brief-lede">BioMarin is withdrawing ROCTAVIAN (valoctocogene roxaparvovec-rvox) from the US market effective end of May 2026 and is exploring a full divestiture. US 2024 sales were only around $26M, part of a broader, industry-wide hemophilia gene-therapy retreat: Pfizer has already discontinued Beqvez (hemophilia B), and CSL's Hemgenix (hemophilia B) has shown weak uptake. MO6's Low coverage rating reflects the genuine field difficulty of this moment &mdash; there is no version of this conversation that isn't hard, and the only defensible path is transparency with existing US patients, preserved scientific credibility ex-US, and honest intelligence feeding the divestiture evaluation.</p>
+
+    <div class="brief-meta">
+      <div class="meta-item"><span class="meta-label">Product Focus</span><span class="meta-value">ROCTAVIAN (valoctocogene roxaparvovec)</span></div>
+      <div class="meta-item"><span class="meta-label">Medical Objective</span><span class="meta-value dim">MO6 (Low)</span></div>
+      <div class="meta-item"><span class="meta-label">Market Event</span><span class="meta-value warn">&#9679; US Withdrawal &middot; Effective End of May 2026</span></div>
+      <div class="meta-item"><span class="meta-label">Congress Watch</span><span class="meta-value dim">WFH World Congress 2026 &middot; ISTH 2026</span></div>
+    </div>
+
+    <div class="summary-box">
+      <div class="summary-label">&#9679; Pulse Summary</div>
+      <p class="summary-body"><strong>The strategic picture:</strong> The clinical data behind ROCTAVIAN was never the problem &mdash; 5-year GENEr8-1 follow-up (134 adults) showed roughly 80.8% remaining off prophylaxis, durable, with no new safety signals. The problem was commercial: a $2.9M list price and a category-wide pattern of underwhelming US uptake across every hemophilia gene therapy on the market. The field's job now is precise, not promotional &mdash; support the US patients who are already on therapy through the transition honestly, keep the scientific conversation credible with ex-US (UK/EU/international) treaters where ROCTAVIAN remains available, and route real field intelligence into the divestiture evaluation rather than defending a US commercial narrative that the company itself has already moved past.</p>
+    </div>
+
+    <div class="brief-section" style="animation-delay:0.05s">
+      <h2 class="section-h2">The data was never the weak point. <em>The category's commercial economics were &mdash; and that distinction is what keeps this conversation credible.</em></h2>
+      <p class="section-body">Steven Pipe (University of Michigan) and Barbara Konkle (Bloodworks Northwest) are the strongest US voices for supporting existing patients through an honest transition conversation grounded in the durable GENEr8-1 data. Frank Leebeek (Erasmus MC, Rotterdam), K. John Pasi and Michael Laffan (both London), and Johnny Mahlangu (University of the Witwatersrand) are the priority ex-US engagements &mdash; the scientific credibility of the durability data doesn't change because of a US commercial decision, and preserving those relationships matters independently of what happens to the US business. It's important that field messaging keep the hemophilia A/B distinction precise throughout: Beqvez and Hemgenix are hemophilia B therapies and are not direct ROCTAVIAN competitors; the pattern across the category is a shared commercial-adoption challenge, not head-to-head competitive losses.</p>
+      <p class="section-body">MSL interactions with existing US patients require particular care &mdash; these are patients who made a significant, informed decision to pursue gene therapy, and the transition conversation needs to be handled with the same rigor and honesty as the original treatment decision. Margareth Ozelo (UNICAMP, Brazil) and Andrew Leavitt (UCSF) round out a roster capable of holding both the domestic transition conversation and the ex-US credibility conversation without either one undermining the other.</p>
+      <div class="pull-quote">
+        <p class="pull-quote-text">"I made a real decision to go through with this therapy. I need to know what changes for me now, and I need it to come from someone being straight with me, not softened."</p>
+        <span class="pull-quote-cite">US hemophilia A patient, existing ROCTAVIAN recipient &middot; June 2026</span>
+      </div>
+      <table class="comp-matrix">
+        <thead><tr><th>Hemophilia Gene Therapy</th><th>Disease</th><th>US Status (2026)</th></tr></thead>
+        <tbody>
+          <tr class="hl"><td>ROCTAVIAN (BioMarin)</td><td>Hemophilia A</td><td class="crs">Withdrawing, end of May 2026</td></tr>
+          <tr><td>Beqvez (Pfizer)</td><td>Hemophilia B</td><td class="crs">Discontinued</td></tr>
+          <tr><td>Hemgenix (CSL)</td><td>Hemophilia B</td><td>Weak uptake, still marketed</td></tr>
+        </tbody>
+      </table>
+      <div class="sources">
+        <span class="source-chip">GENEr8-1, 5-year follow-up data</span>
+        <span class="source-chip">BioMarin US withdrawal disclosure, 2026</span>
+        <span class="source-chip">Pfizer Beqvez discontinuation notice</span>
+      </div>
+      <div class="fvq">
+        <div class="fvq-label">&#8594; Field Validation Question</div>
+        <p class="fvq-text">What specific questions are ex-US hemophilia A treaters raising about ROCTAVIAN's durability and the company's divestiture evaluation, and does proactive, transparent MSL outreach ahead of WFH World Congress 2026 measurably preserve scientific-exchange engagement relative to accounts that only hear about the US withdrawal secondhand?</p>
+      </div>
+      <div class="action-bar">
+        <button class="act-btn act-defend" onclick="openPanel('defend','roctavian')">Defend This</button>
+        <button class="act-btn act-forecast" onclick="openPanel('forecast','roctavian')">What Does This Foretell?</button>
+        <button class="act-btn act-flag" onclick="void(0)">Flag for Field Medical</button>
+      </div>
+    </div>
+
+    <div class="bottom-line">
+      <div class="bottom-line-header"><span class="bottom-line-label">&#9632; Bottom Line &middot; 2 Actions</span></div>
+      <div class="bottom-line-items">
+        <div class="bottom-line-item"><span class="bl-num">01</span><span class="bl-text"><strong>Give the field a US patient-transition conversation guide</strong> built for honesty over reassurance, grounded in the durable 5-year GENEr8-1 data rather than avoiding the withdrawal itself.</span></div>
+        <div class="bottom-line-item"><span class="bl-num">02</span><span class="bl-text"><strong>Stand up an ex-US scientific-credibility engagement tracker</strong> prioritizing Dr. Leebeek, Dr. Pasi, Dr. Laffan, and Dr. Mahlangu, so real field intelligence from those conversations feeds the divestiture evaluation rather than getting lost.</span></div>
+      </div>
+    </div>
+
+    <div class="brief-footer">
+      <div>
+        <p class="footer-sources">Sources: GENEr8-1 5-year follow-up data; BioMarin US market withdrawal disclosure, 2026; Pfizer Beqvez discontinuation notice; Dr. Steven Pipe, Dr. Barbara Konkle, Dr. Frank Leebeek public trial leadership.</p>
+        <p class="footer-disc">No proprietary BioMarin data used. Prepared by Aurivian Medical Intelligence for internal Medical Affairs use only.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── BRIEF 6: Aldurazyme Co-Marketing Nuance ── -->
+  <div id="brief-aldurazyme-comarketing" class="brief-content" style="max-width:800px;margin:0 auto;padding:28px 36px 90px;">
+
+    <div class="brief-eyebrow">
+      <span class="tag tag-outline">Intelligence Brief</span>
+      <span class="tag tag-product">Aldurazyme &middot; MPS I</span>
+      <span class="eyebrow-date">July 8, 2026 &middot; 7:00 AM PT</span>
+    </div>
+
+    <h1 class="brief-headline">
+      Aldurazyme isn't BioMarin's to promote the way Naglazyme, Vimizim, or Brineura are. <em>Getting the Sanofi-Genzyme line right is a small detail with outsized credibility risk.</em>
+    </h1>
+
+    <p class="brief-lede">Aldurazyme (laronidase) is structurally different from the rest of BioMarin's MPS/lysosomal franchise: it's co-commercialized through a 50/50 joint venture (BioMarin/Genzyme LLC) that holds the IP, with Genzyme/Sanofi handling global marketing and sales while BioMarin manufactures and receives a royalty (roughly 39.5&ndash;50% of net sales). MO3's field-excellence objective explicitly includes equipping MSLs to represent this accurately &mdash; a manufacturing/royalty role, not a full-commercialization role &mdash; alongside sustaining diagnostic- and referral-pathway excellence across Naglazyme, Vimizim, and Brineura.</p>
+
+    <div class="brief-meta">
+      <div class="meta-item"><span class="meta-label">Product Focus</span><span class="meta-value">Aldurazyme (laronidase)</span></div>
+      <div class="meta-item"><span class="meta-label">Medical Objective</span><span class="meta-value dim">MO3 (Gap)</span></div>
+      <div class="meta-item"><span class="meta-label">Field Precision Risk</span><span class="meta-value warn">&#9679; Co-Marketing Structure Under-Communicated</span></div>
+      <div class="meta-item"><span class="meta-label">Congress Watch</span><span class="meta-value dim">ASGCT 2026</span></div>
+    </div>
+
+    <div class="summary-box">
+      <div class="summary-label">&#9679; Pulse Summary</div>
+      <p class="summary-body"><strong>The strategic picture:</strong> This isn't a competitive or safety story &mdash; it's a quieter attention-to-detail moment that says more about Medical Affairs rigor than any headline finding could. A field team that can hold the manufacturing/royalty nuance on Aldurazyme correctly, distinct from its full ownership of Naglazyme, Vimizim, and Brineura, is a field team a sophisticated MPS specialist will trust on everything else.</p>
+    </div>
+
+    <div class="brief-section" style="animation-delay:0.05s">
+      <h2 class="section-h2">The distinction sounds small. <em>Overclaiming ownership of a co-marketed product is exactly the kind of imprecision that erodes trust in every other claim BioMarin makes.</em></h2>
+      <p class="section-body">Joseph Muenzer (UNC Chapel Hill), Paul Harmatz (UCSF Benioff Children's Hospital Oakland), and Roberto Giugliani (UFRGS / Hospital de Clínicas de Porto Alegre) are among the strongest MPS-generalist voices, and their engagement spans the full MPS portfolio including Aldurazyme &mdash; but field materials and MSL talking points need to reflect that BioMarin's role there is manufacturing and royalty-based, with Genzyme/Sanofi as the commercializing partner, versus BioMarin's direct commercial ownership of Naglazyme, Vimizim, and Brineura. No 2025&ndash;2026 restructuring of the Aldurazyme arrangement has been identified, so this is a stable, current fact to get right consistently, not a moving target.</p>
+      <p class="section-body">The practical risk shows up subtly: an MSL slide deck or leave-behind that lists Aldurazyme alongside the other three MPS products without noting the co-marketing structure implicitly overstates BioMarin's commercial role, and a sophisticated referring physician or payer-facing contact who already knows the Sanofi-Genzyme relationship will notice the omission. That's a credibility cost that's entirely avoidable with one accurate sentence.</p>
+      <table class="comp-matrix">
+        <thead><tr><th>MPS Product</th><th>BioMarin's Role</th></tr></thead>
+        <tbody>
+          <tr><td>Naglazyme (galsulfase)</td><td class="chk">Full commercial ownership</td></tr>
+          <tr><td>Vimizim (elosulfase alfa)</td><td class="chk">Full commercial ownership</td></tr>
+          <tr><td>Brineura (cerliponase alfa)</td><td class="chk">Full commercial ownership</td></tr>
+          <tr class="hl"><td>Aldurazyme (laronidase)</td><td>Manufacturing + royalty (JV IP); Genzyme/Sanofi markets &amp; sells globally</td></tr>
+        </tbody>
+      </table>
+      <div class="sources">
+        <span class="source-chip">BioMarin/Genzyme LLC JV structure, SEC filings</span>
+        <span class="source-chip">BioMarin corporate materials, Aldurazyme co-marketing arrangement</span>
+      </div>
+      <div class="fvq">
+        <div class="fvq-label">&#8594; Field Validation Question</div>
+        <p class="fvq-text">Do current MSL leave-behinds and slide decks that reference the full MPS/lysosomal portfolio correctly distinguish Aldurazyme's co-marketing structure from BioMarin's direct commercial ownership of Naglazyme, Vimizim, and Brineura, or is this an inconsistency worth auditing across the field materials library?</p>
+      </div>
+      <div class="action-bar">
+        <button class="act-btn act-defend" onclick="openPanel('defend','aldurazyme')">Defend This</button>
+        <button class="act-btn act-flag" onclick="void(0)">Flag for Medical Information</button>
+      </div>
+    </div>
+
+    <div class="bottom-line">
+      <div class="bottom-line-header"><span class="bottom-line-label">&#9632; Bottom Line &middot; 2 Actions</span></div>
+      <div class="bottom-line-items">
+        <div class="bottom-line-item"><span class="bl-num">01</span><span class="bl-text"><strong>Audit existing MPS field materials for accurate Aldurazyme co-marketing language</strong> &mdash; a manufacturing/royalty role via the BioMarin/Genzyme LLC joint venture, not full commercial ownership.</span></div>
+        <div class="bottom-line-item"><span class="bl-num">02</span><span class="bl-text"><strong>Add a one-line co-marketing disclosure to any leave-behind that groups Aldurazyme with Naglazyme, Vimizim, or Brineura</strong> &mdash; a small correction that protects credibility with sophisticated MPS specialists and payer contacts alike.</span></div>
+      </div>
+    </div>
+
+    <div class="brief-footer">
+      <div>
+        <p class="footer-sources">Sources: BioMarin/Genzyme LLC joint-venture structure, SEC filings; BioMarin corporate materials on Aldurazyme co-marketing; Dr. Joseph Muenzer, Dr. Paul Harmatz, Dr. Roberto Giugliani public affiliations.</p>
+        <p class="footer-disc">No proprietary BioMarin data used. Prepared by Aurivian Medical Intelligence for internal Medical Affairs use only.</p>
+      </div>
+    </div>
+  </div>
+
+  </div><!-- end view-brief -->
+
+  <!-- ══ VIEW: NARRATIVE MAP ═══════════════════════ -->
+  <div id="view-narrative" class="view">
+    <div id="view-narrative-inner">
+      <div class="narr-header">
+        <div class="narr-title">Narrative Map</div>
+        <p class="narr-sub">Where each stakeholder community currently stands on the four biggest strategic tensions across the BioMarin rare-disease portfolio. Select a topic to see how Providers, Patients, Payers, and Competitive voices are each reading it.</p>
+      </div>
+
+      <div class="topic-pills" id="topicPills"></div>
+      <div id="tensionBoxWrap"></div>
+      <div class="narr-cards" id="narrCards"></div>
+    </div>
+  </div>
+
+  <!-- ══ VIEW: SIGNAL VELOCITY ═════════════════════ -->
+  <div id="view-velocity" class="view">
+    <div id="view-velocity-inner">
+      <div class="vel-header">
+        <div class="vel-title">Signal Velocity</div>
+        <p class="vel-sub">Rate-of-change across the five fastest-moving narratives touching the BioMarin portfolio &mdash; velocity, not volume. Bars show relative momentum by stakeholder community over the last 30 days.</p>
+      </div>
+      <div class="vel-alert" id="velAlert"></div>
+      <div id="velCards"></div>
+    </div>
+  </div>
+
+  <!-- ══ VIEW: PLATFORM INTEGRATION ════════════════ -->
+  <div id="view-integration" class="view">
+    <div id="view-integration-inner">
+      <div class="integration-placeholder">
+        <div class="integration-icon">&#9675;</div>
+        <div class="integration-title">Platform Integration</div>
+        <p class="integration-sub">Coming Soon &mdash; direct integration between Pulse signals and the Aurivian ARIA/LUCA platform is in development.</p>
+      </div>
+    </div>
+  </div>
+
+</main><!-- end main -->
+
+</div><!-- end shell -->
+
+<!-- SIDE PANEL -->
+<div id="side-panel-overlay" onclick="closePanel()"></div>
+<div id="side-panel">
+  <div class="panel-header">
+    <span class="panel-title" id="panelTitle">Defend This</span>
+    <button class="panel-close" onclick="closePanel()">&#215;</button>
+  </div>
+  <div class="panel-body" id="panelBody"></div>
+</div>
+
+<!-- AUDIO BAR -->
+<div id="audio-bar">
+  <button class="audio-play-btn" onclick="toggleAudio()" id="play-btn">
+    <span id="play-icon" class="audio-play-icon">&#9654;</span>
+  </button>
+  <div class="audio-meta">
+    <div class="audio-title">Pulse Brief &middot; August 15, 2026</div>
+    <div class="audio-subtitle">BioMarin Medical Affairs Field Intelligence</div>
+  </div>
+  <div class="audio-progress-wrap">
+    <div class="audio-track" onclick="scrubAudio(event)" id="audio-track">
+      <div class="audio-fill" id="audio-fill"></div>
+    </div>
+    <span class="audio-time" id="audio-time">0:00 / 0:00</span>
+  </div>
+  <button class="audio-close" onclick="closeAudio()" title="Close">&#215;</button>
+</div>
+<audio id="brief-audio" src="pulse_brief_audio.mp3" preload="metadata"></audio>
+
+<script>
+// ── SIGNAL BANNER ─────────────────────────────
+function dismissSignal() {
+  document.getElementById('shell').classList.remove('signal-open');
+}
+
+// ── AUDIO PLAYER ──────────────────────────────
+const audio  = document.getElementById('brief-audio');
+const bar    = document.getElementById('audio-bar');
+const fill   = document.getElementById('audio-fill');
+const timeEl = document.getElementById('audio-time');
+const icon   = document.getElementById('play-icon');
+
+function fmt(s) {
+  const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+  return m + ':' + (sec < 10 ? '0' : '') + sec;
+}
+
+audio.addEventListener('loadedmetadata', function() {
+  timeEl.textContent = fmt(0) + ' / ' + fmt(audio.duration);
+});
+
+audio.addEventListener('timeupdate', function() {
+  if (!audio.duration) return;
+  fill.style.width = (audio.currentTime / audio.duration * 100) + '%';
+  timeEl.textContent = fmt(audio.currentTime) + ' / ' + fmt(audio.duration);
+});
+
+audio.addEventListener('ended', function() {
+  icon.innerHTML = '&#9654;';
+  document.getElementById('listen-btn').classList.remove('playing');
+});
+
+function openAudio() {
+  bar.classList.add('open');
+  audio.play().then(function() {
+    icon.innerHTML = '&#9646;&#9646;';
+    document.getElementById('listen-btn').classList.add('playing');
+  }).catch(function(err) { console.warn('Audio play failed:', err); });
+}
+
+function toggleAudio() {
+  if (audio.paused) {
+    audio.play().then(function() {
+      icon.innerHTML = '&#9646;&#9646;';
+      document.getElementById('listen-btn').classList.add('playing');
+    }).catch(function(err) { console.warn('Audio play failed:', err); });
+  } else {
+    audio.pause();
+    icon.innerHTML = '&#9654;';
+    document.getElementById('listen-btn').classList.remove('playing');
+  }
+}
+
+function closeAudio() {
+  audio.pause();
+  audio.currentTime = 0;
+  bar.classList.remove('open');
+  icon.innerHTML = '&#9654;';
+  fill.style.width = '0%';
+  document.getElementById('listen-btn').classList.remove('playing');
+}
+
+function scrubAudio(evt) {
+  if (!audio.duration) return;
+  const track = document.getElementById('audio-track');
+  const rect = track.getBoundingClientRect();
+  const pct = (evt.clientX - rect.left) / rect.width;
+  audio.currentTime = pct * audio.duration;
+}
+
+// ── VIEW SWITCHING ────────────────────────────
+function showView(viewId, navEl, label) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const target = document.getElementById('view-' + viewId);
+  if (target) target.classList.add('active');
+  if (navEl) navEl.classList.add('active');
+  document.getElementById('topbarCenter').textContent = label || 'Morning Brief';
+  if (viewId !== 'brief') {
+    document.querySelectorAll('.brief-card').forEach(c => c.classList.remove('active'));
+  }
+  if (viewId === 'narrative') renderNarrative();
+  if (viewId === 'velocity') renderVelocity();
+}
+
+// ── BRIEF SWITCHING ───────────────────────────
+function switchBrief(cardEl, briefId) {
+  document.querySelectorAll('.brief-card').forEach(c => c.classList.remove('active'));
+  cardEl.classList.add('active');
+  document.querySelectorAll('.brief-content').forEach(b => b.classList.remove('active'));
+  const target = document.getElementById('brief-' + briefId);
+  if (target) {
+    target.classList.add('active');
+    document.getElementById('main').scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-brief').classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('nav-brief').classList.add('active');
+  document.getElementById('topbarCenter').textContent = 'Morning Brief';
+}
+
+// ── SIDEBAR TOGGLE ────────────────────────────
+function toggleSidebar() {
+  const shell = document.getElementById('shell');
+  const btn = document.getElementById('sidebar-toggle');
+  shell.classList.toggle('collapsed');
+  btn.innerHTML = shell.classList.contains('collapsed') ? '&#8250;' : '&#8249;';
+}
+
+// ── SIDE PANEL: DATA ───────────────────────────
+const panelData = {
+  defend: {
+    palynziq: {
+      claim: "PALYNZIQ's adolescent PEGASUS data is genuinely strong and stands entirely on its own merits, independent of the Sephience conversation happening elsewhere in the PKU landscape.",
+      blocks: [
+        { icon: '&#10022;', cls: 'pi-claim', label: 'The Claim', body: 'PEGASUS Phase 3 supports adolescent (12-17) PALYNZIQ initiation with a large, clinically meaningful blood-Phe reduction versus diet alone, and this population and Sephience\'s target population (BH4-responsive) do not overlap.' },
+        { icon: 'E', cls: 'pi-evidence', label: 'The Evidence', body: 'PEGASUS Phase 3 (55 adolescents): blood Phe reduced -473 vs. -19 µmol/L at week 72 vs. diet alone, presented at ICIEM 2025, Kyoto. FDA approved adolescent indication in 2026.' },
+        { icon: 'V', cls: 'pi-voices', label: 'The Voices', body: 'Jerry Vockley and Stephanie Sacharow (PEGASUS adolescent trial author) are the strongest anchors; Nicola Longo and Cary Harding provide regional field depth.' },
+        { icon: 'C', cls: 'pi-confidence', label: 'Confidence', body: 'High on the efficacy data itself; moderate on how quickly a pediatric-specific dosing reference closes the remaining initiation-confidence gap.', confidence: 80 },
+      ],
+    },
+    voxzogo: {
+      claim: 'VOXZOGO\'s achondroplasia safety record is intact and well-documented across more than 5,000 patients; the March 2026 discontinuation is a real but precisely scoped signal outside that population.',
+      blocks: [
+        { icon: '&#10022;', cls: 'pi-claim', label: 'The Claim', body: 'No SCFE cases have occurred in BioMarin-sponsored achondroplasia trials; the SCFE signal that led to discontinuation was observed in investigator-sponsored Turner/SHOX/ACAN trials, a different population.' },
+        { icon: 'E', cls: 'pi-evidence', label: 'The Evidence', body: 'BioMarin achondroplasia dataset: >5,000 patients, zero SCFE cases. Turner/SHOX/ACAN CANOPY trials: dosing/enrollment discontinued Mar 2026 following SCFE events in two investigator-sponsored trials.' },
+        { icon: 'V', cls: 'pi-voices', label: 'The Voices', body: 'Barbara Burton\'s registry-data depth, plus Ravi Savarirayan and Julie Hoover-Fong\'s pivotal-trial and consensus-guideline authority, ground this conversation precisely.' },
+        { icon: 'C', cls: 'pi-confidence', label: 'Confidence', body: 'High on the population-scoping facts as disclosed; moderate on how quickly field-level precision replaces the current, occasionally imprecise version of this conversation.', confidence: 73 },
+      ],
+    },
+    roctavian: {
+      claim: "ROCTAVIAN's US withdrawal is a commercial decision, not a retraction of the clinical data — the 5-year durability record stands, and ex-US scientific credibility does not depend on the US commercial outcome.",
+      blocks: [
+        { icon: '&#10022;', cls: 'pi-claim', label: 'The Claim', body: 'The GENEr8-1 durability data remains real and strong; the US exit reflects category-wide hemophilia gene-therapy commercial economics, not a change in the clinical evidence.' },
+        { icon: 'E', cls: 'pi-evidence', label: 'The Evidence', body: 'GENEr8-1 5-year follow-up (134 adults): ~80.8% remaining off prophylaxis, durable, no new safety signals. 2024 US sales only ~$26M against a $2.9M list price.' },
+        { icon: 'V', cls: 'pi-voices', label: 'The Voices', body: 'Steven Pipe and Barbara Konkle for the US patient-transition conversation; Frank Leebeek, K. John Pasi, Michael Laffan, and Johnny Mahlangu for ex-US scientific-credibility continuity.' },
+        { icon: 'C', cls: 'pi-confidence', label: 'Confidence', body: 'High on the clinical-data-versus-commercial-decision distinction; moderate on how the divestiture evaluation ultimately affects long-term ex-US relationship continuity.', confidence: 68 },
+      ],
+    },
+    aldurazyme: {
+      claim: "Accurately representing BioMarin's manufacturing/royalty role in Aldurazyme, distinct from full ownership of Naglazyme, Vimizim, and Brineura, is a small but consequential field-precision requirement.",
+      blocks: [
+        { icon: '&#10022;', cls: 'pi-claim', label: 'The Claim', body: 'Aldurazyme is co-commercialized via the BioMarin/Genzyme LLC joint venture; Genzyme/Sanofi markets and sells it globally while BioMarin manufactures and receives a royalty.' },
+        { icon: 'E', cls: 'pi-evidence', label: 'The Evidence', body: 'BioMarin/Genzyme LLC 50/50 joint venture holds the IP; royalty range approximately 39.5-50% of net sales, per SEC filings and BioMarin corporate materials.' },
+        { icon: 'V', cls: 'pi-voices', label: 'The Voices', body: 'Joseph Muenzer, Paul Harmatz, and Roberto Giugliani are strong MPS-generalist voices whose engagement spans the full portfolio, Aldurazyme included, under the correct framing.' },
+        { icon: 'C', cls: 'pi-confidence', label: 'Confidence', body: 'High on the co-marketing structure as documented; no 2025-2026 restructuring identified, so this is a stable fact to standardize across field materials.', confidence: 85 },
+      ],
+    },
+  },
+  forecast: {
+    palynziq: {
+      claim: 'Will adolescent PALYNZIQ initiation accelerate meaningfully over the next two congress cycles?',
+      scenarios: [
+        { prob: '55% likely', cls: 'prob-high', primary: true, label: 'Initiation accelerates once a pediatric-specific dosing reference reaches the field.', body: 'Addressing the dose-escalation and anaphylaxis-monitoring confidence gap directly removes the main remaining barrier to first prescriptions, and the underlying efficacy data does the rest.', analogy: 'Similar to how other pediatric label expansions have historically been gated more by dosing-confidence materials than by efficacy skepticism.' },
+        { prob: '30% likely', cls: 'prob-med', primary: false, label: 'Initiation grows steadily but slower than the data alone would predict.', body: 'Without a dedicated pediatric dosing resource, some prescribers continue waiting for informal peer experience to accumulate before initiating their own first adolescent patients.' },
+        { prob: '15% likely', cls: 'prob-low', primary: false, label: 'Sephience-related PKU-landscape noise slows the field\'s attention to the adolescent PALYNZIQ story specifically.', body: 'If general PKU competitive commentary crowds out the adolescent PEGASUS story\'s visibility, initiation momentum could build more slowly than the strength of the data alone would suggest.' },
+      ],
+      caveat: 'This forecast assumes MSL cadence around the adolescent launch remains consistent and that a dedicated pediatric dosing resource ships on the timeline field teams expect.',
+    },
+    voxzogo: {
+      claim: 'Will field-level precision about the Turner/SHOX/ACAN discontinuation versus the achondroplasia safety record improve over the next two quarters?',
+      scenarios: [
+        { prob: '48% likely', cls: 'prob-high', primary: true, label: 'Precision improves as a source-grounded reference reaches the field consistently.', body: 'A single, repeatedly-used reference document closes most of the current population-scoping confusion within a couple of congress and MSL-visit cycles.' },
+        { prob: '33% likely', cls: 'prob-med', primary: false, label: 'Confusion persists at a similar rate without a dedicated intervention.', body: 'Complex, multi-population safety disclosures are historically slow to fully clarify in field conversations without a repeated, structured correction effort.' },
+        { prob: '19% likely', cls: 'prob-low', primary: false, label: 'Dr. Mohnike-adjacent Ascendis competitive conversations accelerate scrutiny of VOXZOGO\'s safety profile generally, compounding the clarification challenge.', body: 'If competitive attention to CNP-analog dosing increases broader safety-profile scrutiny across the category, the Turner/SHOX/ACAN distinction may need more, not less, active reinforcement.' },
+      ],
+      caveat: 'This forecast assumes no additional SCFE-related disclosures occur in the achondroplasia population during the window; a new finding there would materially change all three scenarios.',
+    },
+    roctavian: {
+      claim: 'Will ex-US scientific credibility with hemophilia A treaters remain stable through the divestiture evaluation period?',
+      scenarios: [
+        { prob: '46% likely', cls: 'prob-high', primary: true, label: 'Credibility holds steady as proactive, transparent ex-US engagement continues.', body: 'Treaters in the UK, EU, and other ex-US markets where ROCTAVIAN remains available continue engaging on the durability data as long as BioMarin communicates the US decision and divestiture process transparently rather than letting it surface secondhand.' },
+        { prob: '35% likely', cls: 'prob-med', primary: false, label: 'Some erosion occurs regardless, as the US exit itself raises reasonable questions about long-term company commitment.', body: 'Even with excellent field communication, a US market withdrawal understandably prompts some ex-US treaters to reassess their own confidence in the product\'s future, independent of the data.' },
+        { prob: '19% likely', cls: 'prob-low', primary: false, label: 'A divestiture to a committed acquirer stabilizes or improves ex-US confidence faster than the current uncertainty allows.', body: 'If the divestiture evaluation concludes with a credible, well-resourced acquirer, ex-US treater confidence could recover faster than a prolonged uncertainty period would otherwise produce.' },
+      ],
+      caveat: 'This forecast assumes the divestiture evaluation timeline remains on its current track; an extended or stalled process would likely erode ex-US confidence further than these scenarios capture.',
+    },
+    aldurazyme: {
+      claim: 'Will field materials across the MPS portfolio consistently reflect the accurate Aldurazyme co-marketing structure within the next two quarters?',
+      scenarios: [
+        { prob: '52% likely', cls: 'prob-high', primary: true, label: 'Consistency improves following a targeted field-materials audit.', body: 'A one-time audit and correction of the leave-behind library, paired with a standard co-marketing disclosure line, closes most of the current inconsistency relatively quickly since this is a factual correction, not a behavior change.' },
+        { prob: '32% likely', cls: 'prob-med', primary: false, label: 'Legacy materials persist in circulation despite an audit.', body: 'Older printed or archived digital materials sometimes continue circulating locally even after a central library update, requiring a follow-up field-level check.' },
+        { prob: '16% likely', cls: 'prob-low', primary: false, label: 'The nuance becomes a standard, reinforced part of MSL onboarding, essentially eliminating the risk going forward.', body: 'If this becomes a standing item in MSL training rather than a one-time correction, the risk of recurrence drops substantially below the current baseline.' },
+      ],
+      caveat: 'This forecast assumes the Sanofi-Genzyme co-marketing arrangement itself remains unchanged during the window; any restructuring would require an immediate re-audit rather than following this timeline.',
+    },
+  },
+};
+
+const iconClassMap = { palynziq: 'c-teal', voxzogo: 'c-amber', roctavian: 'c-rose', aldurazyme: 'c-sage' };
+
+function openPanel(mode, key) {
+  const data = panelData[mode][key];
+  if (!data) return;
+  const title = mode === 'defend' ? 'Defend This' : 'What Does This Foretell?';
+  document.getElementById('panelTitle').textContent = title;
+  let html = '<p class="panel-claim">' + data.claim + '</p>';
+
+  if (mode === 'defend') {
+    data.blocks.forEach(b => {
+      html += '<div class="pblock"><div class="pblock-icon ' + b.cls + '">' + b.icon + '</div><div class="pblock-content">';
+      html += '<div class="pblock-label">' + b.label + '</div><div class="pblock-body">' + b.body + '</div>';
+      if (typeof b.confidence === 'number') {
+        html += '<div class="confidence-bar-wrap"><div class="confidence-bar-bg"><div class="confidence-bar-fill" id="confFill"></div></div><span class="confidence-pct">' + b.confidence + '%</span></div>';
+      }
+      html += '</div></div>';
+    });
+  } else {
+    data.scenarios.forEach(s => {
+      html += '<div class="scenario-card' + (s.primary ? ' primary' : '') + '">';
+      html += '<div class="scenario-top"><span class="scenario-label">' + s.label + '</span><span class="prob-chip ' + s.cls + '">' + s.prob + '</span></div>';
+      html += '<div class="scenario-body">' + s.body + '</div>';
+      if (s.analogy) html += '<div class="scenario-analogy">' + s.analogy + '</div>';
+      html += '</div>';
+    });
+    html += '<div class="caveat-box"><div class="caveat-label">&#9650; Where Pulse Could Be Wrong</div><div class="caveat-body">' + data.caveat + '</div></div>';
+  }
+
+  document.getElementById('panelBody').innerHTML = html;
+  document.getElementById('side-panel').classList.add('open');
+  document.getElementById('side-panel-overlay').classList.add('open');
+
+  const fillEl = document.getElementById('confFill');
+  if (fillEl) {
+    const pct = data.blocks.find(b => typeof b.confidence === 'number').confidence;
+    setTimeout(() => { fillEl.style.width = pct + '%'; }, 80);
+  }
+}
+function closePanel() {
+  document.getElementById('side-panel').classList.remove('open');
+  document.getElementById('side-panel-overlay').classList.remove('open');
+}
+
+// ── NARRATIVE MAP: DATA + RENDER ───────────────
+const topicData = {
+  palynziq: {
+    name: 'PALYNZIQ Momentum vs. Sephience Category Noise',
+    tension: { icon: '&#9878;', text: "PALYNZIQ's adolescent win is uncontested on its own terms, but Sephience's approval is generating enough general PKU-landscape attention that the two very different populations risk being blurred together in field conversations.", badge: 'Watch', badgeClass: 'badge-watch' },
+    cards: [
+      { community: 'Providers', color: 'teal', status: 'Advancing', statusClass: 'status-advancing', headline: 'PEGASUS data is landing well. <em>Dosing-confidence questions, not efficacy skepticism, are the real remaining gate.</em>', body: 'Pediatric geneticists and endocrinologists want explicit confirmation that adult dose-escalation and anaphylaxis-monitoring protocols transfer cleanly to adolescents.', quote: '"I need confidence that the escalation schedule doesn\'t need to be different here."', tension: 'Strong data, dosing-confidence gate remains', tensionDir: '&#8593;', tensionColor: 'teal' },
+      { community: 'Patients', color: 'sage', status: 'Voicing', statusClass: 'status-voicing', headline: 'For a population diet never fully controlled, this is the first real pharmacologic hope. <em>Injection-logistics questions for teenagers are surfacing early.</em>', body: 'Families of BH4-non-responsive adolescents are expressing cautious optimism paired with practical questions about self-injection burden in a school/social context.', quote: '"Hearing there\'s finally something that might actually work for her age group is the first real hope we\'ve had."', tension: 'Genuine hope, practical logistics questions', tensionDir: '&#8593;', tensionColor: 'sage' },
+      { community: 'Payers', color: 'amber', status: 'Monitoring', statusClass: 'status-monitoring', headline: 'No unusual payer friction has surfaced yet for the adolescent expansion. <em>That is worth confirming stays true as initiation volume grows.</em>', body: 'The adolescent indication follows an already-established adult reimbursement pathway, which has so far kept early access relatively smooth.', quote: '&mdash;', tension: 'Currently stable, worth continued monitoring', tensionDir: '&#8594;', tensionColor: 'amber' },
+      { community: 'Competitive', color: 'rose', status: 'Questioning', statusClass: 'status-questioning', headline: "Sephience doesn't compete with PALYNZIQ directly. <em>But general PKU-treatment chatter is starting to conflate the two.</em>", body: 'Some field interactions are treating all new oral/enzyme PKU therapies as one undifferentiated category rather than separating populations by BH4-responsiveness.', quote: '&mdash;', tension: 'A population distinction the field needs to actively hold', tensionDir: '&#8593;', tensionColor: 'rose' },
+    ],
+  },
+  sephience: {
+    name: 'KUVAN Convenience Pressure from Sephience',
+    tension: { icon: '&#128200;', text: "Sephience's oral, once-daily convenience is a legitimate patient-experience argument BioMarin cannot dismiss. The defensible KUVAN response is BH4-responsiveness rigor and real-world track record, not familiarity.", badge: 'Diverging', badgeClass: 'badge-diverging' },
+    cards: [
+      { community: 'Providers', color: 'teal', status: 'Questioning', statusClass: 'status-questioning', headline: 'Stable-patient switch requests are already happening. <em>Prescribers want a substantive answer, not a defensive one.</em>', body: 'MSL reports describe families actively asking about switching well-controlled KUVAN patients purely for dosing convenience, a legitimate but non-clinical driver.', quote: '"I don\'t have a great answer beyond \'let\'s not fix what isn\'t broken.\'"', tension: 'Convenience pressure needs a scientific answer', tensionDir: '&#8593;', tensionColor: 'teal' },
+      { community: 'Patients', color: 'sage', status: 'Voicing', statusClass: 'status-voicing', headline: 'Families are weighing a real convenience trade-off. <em>That preference deserves a direct, respectful response.</em>', body: 'Once-daily oral convenience is a genuine quality-of-life consideration for a chronic pediatric-onset condition, not something to wave away.', quote: '&mdash;', tension: 'A legitimate preference, not a clinical red flag', tensionDir: '&#8594;', tensionColor: 'sage' },
+      { community: 'Payers', color: 'amber', status: 'Monitoring', statusClass: 'status-monitoring', headline: 'No confirmed formulary disruption yet. <em>Worth tracking as Sephience accumulates broader uptake.</em>', body: 'Early payer posture toward Sephience remains to be fully established; KUVAN\'s long tenure has so far kept formulary positioning stable.', quote: '&mdash;', tension: 'Currently stable, early-stage competitor', tensionDir: '&#8594;', tensionColor: 'amber' },
+      { community: 'Competitive', color: 'rose', status: 'Advancing', statusClass: 'status-advancing', headline: 'Sephience is real, approved, and current. <em>Treating it as a future threat rather than a present one would be a mistake.</em>', body: 'FDA approval Jul 2025, plus EU and Japan approvals, make this an active competitive front requiring an active, substantive response now.', quote: '&mdash;', tension: 'An active threat, not a hypothetical one', tensionDir: '&#8593;', tensionColor: 'rose' },
+    ],
+  },
+  voxzogo: {
+    name: 'VOXZOGO Safety Precision vs. Ascendis Competitive Pressure',
+    tension: { icon: '&#9878;', text: 'Two distinct skeletal-conditions tensions are compounding in the same window: precise communication of the Turner/SHOX/ACAN discontinuation, and a genuine, timeline-driven competitive pressure from navepegritide ahead of its EU decision.', badge: 'Diverging', badgeClass: 'badge-diverging' },
+    cards: [
+      { community: 'Providers', color: 'teal', status: 'Questioning', statusClass: 'status-questioning', headline: 'Some achondroplasia-treating endocrinologists are raising SCFE questions unprompted. <em>Population precision, not reassurance, is what closes the gap.</em>', body: 'MSL debriefs show the field is broadly aware of the March 2026 discontinuation but not always precise about which trial populations it involves.', quote: '"I want a source I can point to, not just my own explanation."', tension: 'Awareness without precision', tensionDir: '&#8593;', tensionColor: 'teal' },
+      { community: 'Patients', color: 'sage', status: 'Voicing', statusClass: 'status-voicing', headline: 'Achondroplasia families are asking whether the discontinuation affects them. <em>It does not, and that needs to be said clearly and consistently.</em>', body: 'Unprompted concern from families outside the affected trial populations shows the safety-signal news is traveling faster than its precise scope.', quote: '&mdash;', tension: 'Concern outpacing precise information', tensionDir: '&#8593;', tensionColor: 'sage' },
+      { community: 'Payers', color: 'amber', status: 'Monitoring', statusClass: 'status-monitoring', headline: 'No payer-level access disruption has been reported for the achondroplasia indication. <em>Worth continued monitoring given the safety-signal headlines.</em>', body: 'The discontinuation involves trials outside the approved achondroplasia indication, which so far has kept access unaffected.', quote: '&mdash;', tension: 'Stable for now, headline risk worth watching', tensionDir: '&#8594;', tensionColor: 'amber' },
+      { community: 'Competitive', color: 'rose', status: 'Advancing', statusClass: 'status-advancing', headline: "Ascendis's navepegritide is closing in on an EU decision, and at least one KOL's attention is following it closely. <em>A defensible shift, and a real opening for BMN 333.</em>", body: 'Dr. Mohnike\'s more attentive tracking of navepegritide data is a timeline-driven signal that BMN 333 scientific exchange can meet proactively before it becomes a wider pattern.', quote: '&mdash;', tension: 'A genuine, current competitive pressure point', tensionDir: '&#8593;', tensionColor: 'rose' },
+    ],
+  },
+  roctavian: {
+    name: 'ROCTAVIAN US Exit vs. Ex-US Credibility',
+    tension: { icon: '&#128300;', text: 'The US withdrawal is a commercial decision within a broader hemophilia gene-therapy category retreat, not a retraction of the clinical durability data — and the field\'s job is holding that distinction clearly for both US patients in transition and ex-US treaters.', badge: 'Watch', badgeClass: 'badge-watch' },
+    cards: [
+      { community: 'Providers', color: 'teal', status: 'Questioning', statusClass: 'status-questioning', headline: 'US hemophilia treaters need a clear transition process for existing patients. <em>Ex-US treaters need reassurance the science hasn\'t changed.</em>', body: 'Two different provider conversations are happening simultaneously and need distinct materials rather than a single blended message.', quote: '&mdash;', tension: 'Two audiences, two distinct needs', tensionDir: '&#8593;', tensionColor: 'teal' },
+      { community: 'Patients', color: 'sage', status: 'Voicing', statusClass: 'status-voicing', headline: 'Existing US patients made a significant treatment decision. <em>They deserve a straight, honest transition conversation.</em>', body: 'Patients who pursued gene therapy are now navigating an unexpected market exit and want direct communication, not softened messaging.', quote: '"I need it to come from someone being straight with me, not softened."', tension: 'A patient population owed direct honesty', tensionDir: '&#8593;', tensionColor: 'sage' },
+      { community: 'Payers', color: 'amber', status: 'Monitoring', statusClass: 'status-monitoring', headline: 'US payer conversations are winding down as the withdrawal takes effect. <em>Ex-US payer dynamics remain a separate, ongoing consideration.</em>', body: 'The US market exit naturally closes most domestic payer engagement; ex-US markets continue under their existing access frameworks.', quote: '&mdash;', tension: 'A narrowing US conversation, stable ex-US', tensionDir: '&#8595;', tensionColor: 'amber' },
+      { community: 'Competitive', color: 'rose', status: 'Monitoring', statusClass: 'status-monitoring', headline: "ROCTAVIAN's exit fits an industry-wide pattern, not an isolated failure. <em>That context matters for how the story gets told.</em>", body: 'Pfizer\'s Beqvez discontinuation and Hemgenix\'s weak uptake establish this as a category-wide commercial challenge in hemophilia gene therapy broadly.', quote: '&mdash;', tension: 'A category pattern, not a singular setback', tensionDir: '&#8594;', tensionColor: 'rose' },
+    ],
+  },
+};
+
+let narrativeRendered = false;
+let activeTopic = 'palynziq';
+
+function renderNarrative() {
+  const pillsEl = document.getElementById('topicPills');
+  if (!narrativeRendered) {
+    pillsEl.innerHTML = Object.keys(topicData).map(key =>
+      '<button class="topic-pill' + (key === activeTopic ? ' active' : '') + '" onclick="selectTopic(\'' + key + '\')" id="pill-' + key + '">' + topicData[key].name + '</button>'
+    ).join('');
+    narrativeRendered = true;
+  }
+  renderTopic(activeTopic);
+}
+
+function selectTopic(key) {
+  activeTopic = key;
+  document.querySelectorAll('.topic-pill').forEach(p => p.classList.remove('active'));
+  document.getElementById('pill-' + key).classList.add('active');
+  renderTopic(key);
+}
+
+function renderTopic(key) {
+  const t = topicData[key];
+  document.getElementById('tensionBoxWrap').innerHTML =
+    '<div class="tension-box"><span class="tension-icon">' + t.tension.icon + '</span><span class="tension-text">' + t.tension.text + '</span><span class="tension-badge ' + t.tension.badgeClass + '">' + t.tension.badge + '</span></div>';
+
+  document.getElementById('narrCards').innerHTML = t.cards.map(c =>
+    '<div class="narr-card" style="border-top-color:var(--' + c.color + ')">' +
+      '<div class="narr-card-header"><span class="narr-card-name" style="color:var(--' + c.color + ')">' + c.community + '</span><span class="status-chip ' + c.statusClass + '">' + c.status + '</span></div>' +
+      '<div class="narr-card-headline">' + c.headline + '</div>' +
+      '<div class="narr-card-body">' + c.body + '</div>' +
+      (c.quote !== '&mdash;' ? '<div class="narr-card-quote">' + c.quote + '</div>' : '') +
+      '<div class="narr-card-tension" style="color:var(--' + c.tensionColor + ')">' + c.tensionDir + ' ' + c.tension + '</div>' +
+    '</div>'
+  ).join('');
+}
+
+// ── SIGNAL VELOCITY: DATA + RENDER ─────────────
+const velocityData = [
+  {
+    narrative: 'PALYNZIQ adolescent PEGASUS momentum building post-ICIEM 2025',
+    badge: 'Accelerating', badgeClass: 'badge-accel',
+    bars: [
+      { color: 'provider', pct: 74, delta: '+29%', cls: 'up' },
+      { color: 'payer', pct: 21, delta: '+5%', cls: 'up' },
+      { color: 'patient', pct: 33, delta: '+11%', cls: 'up' },
+      { color: 'competitive', pct: 8, delta: '+1%', cls: 'stable' },
+    ],
+    reading: 'A dedicated pediatric dose-escalation reference needs to reach the field now, while prescriber enthusiasm is at its highest, before the initiation window narrows into a slower steady-state ramp.',
+  },
+  {
+    narrative: 'Sephience switch-conversation pressure on stable KUVAN patients',
+    badge: 'Accelerating', badgeClass: 'badge-accel',
+    bars: [
+      { color: 'provider', pct: 58, delta: '+24%', cls: 'up' },
+      { color: 'patient', pct: 41, delta: '+18%', cls: 'up' },
+      { color: 'payer', pct: 14, delta: '+3%', cls: 'up' },
+      { color: 'competitive', pct: 52, delta: '+19%', cls: 'up' },
+    ],
+    reading: 'A KUVAN-vs-Sephience comparison card grounded in BH4-responsiveness testing rigor is needed before convenience-driven switch requests outpace the field\'s ability to answer them substantively.',
+  },
+  {
+    narrative: 'VOXZOGO Turner/SHOX/ACAN discontinuation reaching families outside the affected population',
+    badge: 'New Narrative', badgeClass: 'badge-new',
+    bars: [
+      { color: 'provider', pct: 44, delta: 'NEW', cls: 'new' },
+      { color: 'patient', pct: 37, delta: 'NEW', cls: 'new' },
+      { color: 'payer', pct: 9, delta: '+1%', cls: 'stable' },
+      { color: 'competitive', pct: 12, delta: '+2%', cls: 'stable' },
+    ],
+    reading: 'A source-grounded, precisely-scoped reference distinguishing the discontinued trials from the achondroplasia dataset should ship now, before imprecise secondhand versions of this story continue spreading.',
+  },
+  {
+    narrative: 'Dr. Mohnike-adjacent Ascendis navepegritide attention ahead of Q4 2026 EU decision',
+    badge: 'New Narrative', badgeClass: 'badge-new',
+    bars: [
+      { color: 'provider', pct: 29, delta: 'NEW', cls: 'new' },
+      { color: 'competitive', pct: 46, delta: '+22%', cls: 'up' },
+      { color: 'payer', pct: 6, delta: '0%', cls: 'stable' },
+      { color: 'patient', pct: 4, delta: '0%', cls: 'stable' },
+    ],
+    reading: 'A proactive BMN 333 scientific exchange with Dr. Mohnike has a narrowing window before the EU decision lands and either resolves or hardens his current attention shift.',
+  },
+  {
+    narrative: 'ROCTAVIAN US-exit transition conversations with existing patients',
+    badge: 'Stable', badgeClass: 'badge-stable',
+    bars: [
+      { color: 'patient', pct: 48, delta: '+7%', cls: 'up' },
+      { color: 'provider', pct: 39, delta: '+5%', cls: 'up' },
+      { color: 'competitive', pct: 17, delta: '+2%', cls: 'stable' },
+      { color: 'payer', pct: 11, delta: '-2%', cls: 'stable' },
+    ],
+    reading: 'A steady, expected wind-down rather than a spike — the priority is making sure the US patient-transition guide and ex-US credibility tracker both stay current through the May 2026 withdrawal date and beyond.',
+  },
+];
+
+let velocityRendered = false;
+function renderVelocity() {
+  if (velocityRendered) return;
+  velocityRendered = true;
+
+  document.getElementById('velAlert').innerHTML =
+    '<div class="vel-alert-label">&#9650; New Narrative Alert</div>' +
+    '<div class="vel-alert-body">Dr. Mohnike\'s attention shift toward Ascendis\'s navepegritide is a fast-emerging competitive-community signal (+22% new momentum) with a genuine, narrowing window: a proactive BMN 333 scientific exchange before the Q4 2026 EU decision is the highest-leverage near-term action available in the skeletal-conditions franchise.</div>';
+
+  const cardsEl = document.getElementById('velCards');
+  cardsEl.innerHTML = velocityData.map((v, i) => {
+    const barsHtml = v.bars.map(b =>
+      '<div class="vel-bar-wrap"><span class="vel-label">' + b.color + '</span><div class="vel-bar-bg"><div class="vel-bar vbar-' + b.color + '" data-pct="' + b.pct + '" id="velbar-' + i + '-' + b.color + '"></div></div><span class="vel-delta ' + b.cls + '">' + b.delta + '</span></div>'
+    ).join('');
+    return '<div class="vel-card">' +
+      '<div class="vel-card-top"><div class="vel-signal">' + v.narrative + '</div><span class="vel-badge ' + v.badgeClass + '">' + v.badge + '</span></div>' +
+      '<div class="vel-bars">' + barsHtml + '</div>' +
+      '<p class="vel-note">' + v.reading + '</p>' +
+    '</div>';
+  }).join('');
+
+  setTimeout(() => {
+    velocityData.forEach((v, i) => {
+      v.bars.forEach(b => {
+        const el = document.getElementById('velbar-' + i + '-' + b.color);
+        if (el) el.style.width = b.pct + '%';
+      });
+    });
+  }, 120);
+}
+</script>
+
+</body>
+</html>
