@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
-  Send, Sparkles, CheckCircle2, ArrowRight, TrendingUp, TrendingDown, Radio,
+  Send, Sparkles, CheckCircle2, ArrowRight, TrendingUp, TrendingDown, Radio, X,
 } from 'lucide-react';
 import {
   CLIENT, MEDICAL_OBJECTIVES, INSIGHT_TO_IMPACT, EMERGING_THEMES, GAP_RADAR,
@@ -36,7 +36,7 @@ const CONFIDENCE_STYLE = {
 function directiveFor(moId) {
   const mo = MEDICAL_OBJECTIVES.find((m) => m.id === moId);
   if (!mo) return null;
-  return { id: `D${moId.replace('MO', '')}`, name: mo.name, coverage: COVERAGE_TARGETS[moId] };
+  return { id: `D${moId.replace('MO', '')}`, moId, name: mo.name, coverage: COVERAGE_TARGETS[moId] };
 }
 
 // ─── Inline copy renderer — "**bold**" segments only ───────────────────
@@ -131,16 +131,23 @@ function TimelineShift({ from, to, note }) {
 
 // ─── Cards ──────────────────────────────────────────────────────────────
 
-function CardChrome({ agent, directive, planChange, timeToImpact, confidence, hot, children }) {
+const DECISION_STYLE = {
+  approved: { label: 'Approved', icon: CheckCircle2, cls: 'text-s-new' },
+  adjusted: { label: 'Adjustment requested', icon: Sparkles, cls: 'text-s-caution' },
+  declined: { label: 'Declined', icon: X, cls: 'text-auri-muted' },
+};
+
+function CardChrome({ agent, directive, planChange, timeToImpact, confidence, hot, status, onDecide, children }) {
   const agentPath = AGENT_META[agent]?.path || '/';
   const conf = CONFIDENCE_STYLE[confidence];
+  const decided = status && DECISION_STYLE[status];
   return (
-    <div className={`rounded-2xl border border-auri-border bg-auri-card p-5 mb-3.5 ${hot ? 'shadow-[inset_3px_0_0_0_rgb(var(--s-urgent))]' : ''}`}>
+    <div className={`rounded-2xl border border-auri-border bg-auri-card p-5 mb-3.5 ${hot && !decided ? 'shadow-[inset_3px_0_0_0_rgb(var(--s-urgent))]' : ''} ${decided ? 'opacity-70' : ''}`}>
       <div className="flex items-center gap-2.5 flex-wrap mb-3">
         <span className={`font-michroma text-xs tracking-wider ${AGENT_ACCENT[agent] || 'text-auri-text'}`}>{agent}</span>
         <span className="font-mono text-[10px] uppercase tracking-wider text-auri-muted">{AGENT_META[agent]?.role}</span>
         {directive && (
-          <NavLink to="/journey" className="font-mono text-[10px] uppercase tracking-wider text-auri-muted bg-auri-offset border border-auri-border rounded px-2 py-0.5 hover:text-auri-text hover:border-auri-text/40">
+          <NavLink to={`/journey?mo=${directive.moId}`} className="font-mono text-[10px] uppercase tracking-wider text-auri-muted bg-auri-offset border border-auri-border rounded px-2 py-0.5 hover:text-auri-text hover:border-auri-text/40">
             {directive.id} · {directive.name.split(' — ')[0]} ›
           </NavLink>
         )}
@@ -158,11 +165,22 @@ function CardChrome({ agent, directive, planChange, timeToImpact, confidence, ho
       </div>
       {children}
       <div className="flex items-center gap-2.5 mt-4 pt-3.5 border-t border-auri-border">
-        <button className="flex items-center gap-1.5 rounded-lg bg-auri-text text-auri-bg px-4 py-2 text-xs font-semibold">
-          <CheckCircle2 size={13} />{planChange ? 'Approve the change' : 'Approve as written'}
-        </button>
-        <button className="rounded-lg border border-auri-border px-4 py-2 text-xs font-semibold text-auri-text">Adjust</button>
-        <button className="px-3 py-2 text-xs text-auri-muted">Decline</button>
+        {decided ? (
+          <>
+            <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${decided.cls}`}>
+              <decided.icon size={13} />{decided.label}
+            </span>
+            <button onClick={() => onDecide(null)} className="text-xs text-auri-muted hover:text-auri-text">Reset</button>
+          </>
+        ) : (
+          <>
+            <button onClick={() => onDecide('approved')} className="flex items-center gap-1.5 rounded-lg bg-auri-text text-auri-bg px-4 py-2 text-xs font-semibold">
+              <CheckCircle2 size={13} />{planChange ? 'Approve the change' : 'Approve as written'}
+            </button>
+            <button onClick={() => onDecide('adjusted')} className="rounded-lg border border-auri-border px-4 py-2 text-xs font-semibold text-auri-text">Adjust</button>
+            <button onClick={() => onDecide('declined')} className="px-3 py-2 text-xs text-auri-muted">Decline</button>
+          </>
+        )}
         <NavLink to={agentPath} className="ml-auto text-xs text-auri-muted hover:text-auri-text flex items-center gap-1.5">
           Open in <span className={`font-michroma text-[11px] ${AGENT_ACCENT[agent]}`}>{agent}</span> →
         </NavLink>
@@ -171,9 +189,9 @@ function CardChrome({ agent, directive, planChange, timeToImpact, confidence, ho
   );
 }
 
-function DecisionCard({ card }) {
+function DecisionCard({ card, status, onDecide }) {
   return (
-    <CardChrome {...card}>
+    <CardChrome {...card} status={status} onDecide={onDecide}>
       <div className="text-[16px] font-semibold text-auri-text leading-snug mb-2">{card.title}</div>
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_240px] gap-4 items-start">
         <div>
@@ -192,15 +210,16 @@ function DecisionCard({ card }) {
   );
 }
 
-function WatchCard({ w }) {
+function WatchCard({ w, status, onFlag }) {
   const directive = w.moRef ? directiveFor(w.moRef) : null;
+  if (status === 'dismissed') return null;
   return (
     <div className="rounded-xl border border-auri-border bg-auri-card p-4">
       <div className="flex items-center gap-2 mb-2">
         <span className={`font-michroma text-xs tracking-wider ${AGENT_ACCENT[w.agent]}`}>{w.agent}</span>
         <span className="font-mono text-[10px] uppercase tracking-wider text-auri-muted">{w.kicker}</span>
         {directive && (
-          <NavLink to="/journey" className="ml-auto font-mono text-[10px] uppercase tracking-wider text-auri-muted bg-auri-offset border border-auri-border rounded px-2 py-0.5">
+          <NavLink to={`/journey?mo=${directive.moId}`} className="ml-auto font-mono text-[10px] uppercase tracking-wider text-auri-muted bg-auri-offset border border-auri-border rounded px-2 py-0.5">
             {directive.id} ›
           </NavLink>
         )}
@@ -215,10 +234,14 @@ function WatchCard({ w }) {
               {w.trendUp ? <TrendingUp size={12} /> : <TrendingDown size={12} />} {w.trend}
             </span>
           </>
+        ) : status === 'flagged' ? (
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-s-new">
+            <CheckCircle2 size={12} />Flagged as directive
+          </span>
         ) : (
           <>
-            <button className="rounded-lg border border-auri-border px-3 py-1.5 text-[11px] font-semibold text-auri-text">Make this a directive</button>
-            <button className="px-2 py-1.5 text-[11px] text-auri-muted">Dismiss</button>
+            <button onClick={() => onFlag('flagged')} className="rounded-lg border border-auri-border px-3 py-1.5 text-[11px] font-semibold text-auri-text">Make this a directive</button>
+            <button onClick={() => onFlag('dismissed')} className="px-2 py-1.5 text-[11px] text-auri-muted">Dismiss</button>
           </>
         )}
       </div>
@@ -233,7 +256,7 @@ const DECIDE_CARDS = [
     agent: 'NOVA', hot: true, directive: directiveFor('MO4'), timeToImpact: '0–3 mo', confidence: 'high',
     title: 'Approve accelerated distribution of the SCFE-vs-achondroplasia precision one-pager',
     body: "Community endocrinologists are conflating the discontinued Turner/SHOX/ACAN SCFE signal with general achondroplasia safety — flagged **4×** this cycle, the highest-recurrence insight in play (AI6, 86% confidence). The safety-database one-pager (>5,000 patients, zero SCFE cases) is drafted and started; this accelerates it to the full skeletal-facing MSL roster ahead of Q3 congress season.",
-    evidence: 'MSL interactions (2) · Ad board, London · ICIEM & ASGCT 2026 congress debriefs',
+    evidence: 'MSL interaction · Med Info query · Ad board, London · ASGCT 2026 congress debrief',
     outcome: 'Precision-messaging correctness rises toward the **74%** level already reached in early-adopter accounts (i2i-4, +27pts in 6 weeks) — applied here to the full roster. If declined: conflation risk carries into peak congress season.',
     viz: <GapBar label="SCFE-vs-achondroplasia precision" value={47} target={74} note="Baseline 47% pre-messaging · 74% already achieved in tracked early-adopter accounts" />,
   },
@@ -266,7 +289,7 @@ const DECIDE_CARDS = [
     agent: 'ARIA', directive: directiveFor('MO1'), timeToImpact: '0–6 mo', confidence: 'high',
     title: 'Approve field materials addressing self-directed Sephience switching conversations',
     body: "Stable KUVAN patients and families are increasingly raising Sephience themselves before their physician does — a self-directed-switching pattern up **44%** since first detected in May, and the first real switching pressure KUVAN has faced since its own approval (et-4, AI1).",
-    evidence: 'MSL interactions (2) · Ad board · Med Info query · ICIEM 2025 congress debrief',
+    evidence: 'MSL interaction · Ad board · Med Info query · ICIEM 2025 congress debrief',
     outcome: 'Materials get ahead of the conversation rather than just responding to it — reinforcing the comparison card already lifting prescriber confidence from 38% to 61% (i2i-1).',
     viz: <ThemeGrowth theme={EMERGING_THEMES.find((t) => t.id === 'et-4')} />,
   },
@@ -302,8 +325,11 @@ const WATCH_ITEMS = [
 
 export default function Pulse() {
   const [directiveInput, setDirectiveInput] = useState('');
+  const [cardStatus, setCardStatus] = useState({});
+  const [watchStatus, setWatchStatus] = useState({});
   const gapMOCount = Object.values(COVERAGE_TARGETS).filter((v) => v === 'Gap').length;
   const eyebrow = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const readyCount = DECIDE_CARDS.length - Object.values(cardStatus).filter(Boolean).length;
 
   return (
     <div className="max-w-[980px]">
@@ -316,7 +342,7 @@ export default function Pulse() {
         </p>
         <div className="flex gap-9 mt-5 pb-5 border-b border-auri-border">
           <div>
-            <div className="text-xl font-semibold text-auri-text">{DECIDE_CARDS.length} <span className="text-sm font-medium text-auri-muted">ready</span></div>
+            <div className="text-xl font-semibold text-auri-text">{readyCount} <span className="text-sm font-medium text-auri-muted">ready</span></div>
             <div className="font-mono text-[10px] uppercase tracking-wider text-auri-muted mt-1">Decisions today</div>
           </div>
           <div>
@@ -358,7 +384,14 @@ export default function Pulse() {
       <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-auri-muted mt-8 mb-3.5">
         <span className="w-1.5 h-1.5 rounded-full bg-s-urgent" />To decide today
       </div>
-      {DECIDE_CARDS.map((c, i) => <DecisionCard key={i} card={c} />)}
+      {DECIDE_CARDS.map((c, i) => (
+        <DecisionCard
+          key={i}
+          card={c}
+          status={cardStatus[i]}
+          onDecide={(next) => setCardStatus((s) => ({ ...s, [i]: next }))}
+        />
+      ))}
 
       {/* Decision outcomes */}
       {OUTCOME_CARD.impact && (
@@ -370,7 +403,7 @@ export default function Pulse() {
             <div className="flex items-center gap-2.5 flex-wrap mb-3">
               <span className={`font-michroma text-xs tracking-wider ${AGENT_ACCENT.VEGA}`}>VEGA</span>
               <span className="font-mono text-[10px] uppercase tracking-wider text-auri-muted">Closed-loop measurement</span>
-              <NavLink to="/journey" className="font-mono text-[10px] uppercase tracking-wider text-auri-muted bg-auri-offset border border-auri-border rounded px-2 py-0.5">
+              <NavLink to="/journey?mo=MO6" className="font-mono text-[10px] uppercase tracking-wider text-auri-muted bg-auri-offset border border-auri-border rounded px-2 py-0.5">
                 {directiveFor('MO6')?.id} · ROCTAVIAN US exit ›
               </NavLink>
               <span className="ml-auto inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-s-new">
@@ -402,7 +435,14 @@ export default function Pulse() {
         <Radio size={11} className="text-s-info" />Standing watch
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-        {WATCH_ITEMS.map((w, i) => <WatchCard key={i} w={w} />)}
+        {WATCH_ITEMS.map((w, i) => (
+          <WatchCard
+            key={i}
+            w={w}
+            status={watchStatus[i]}
+            onFlag={(next) => setWatchStatus((s) => ({ ...s, [i]: next }))}
+          />
+        ))}
       </div>
     </div>
   );
