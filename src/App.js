@@ -9,7 +9,7 @@ import MedicalInsights from './components/MedicalInsights';
 import KOLManagement from './components/KOLManagement';
 import AuriChat from './components/AuriChat';
 import Login from './components/Login';
-import CommandCenter from './components/CommandCenter';
+import Pulse from './components/Pulse';
 import AuriSidebar from './components/AuriSidebar';
 import ArtifactLibrary from './components/ArtifactLibrary';
 import InsightJourney from './components/InsightJourney';
@@ -59,7 +59,7 @@ function Shell() {
 
   // Top nav: Command Center only — agents moved to left rail to declutter.
   const primaryNav = [
-    { path: '/', label: 'Command Center', icon: Home },
+    { path: '/', label: 'Pulse', icon: Home },
   ];
 
   // Left rail: agents + workspaces.
@@ -264,7 +264,7 @@ function Shell() {
         {/* Main content */}
         <main className="flex-1 min-w-0 p-6">
           <Routes>
-            <Route path="/" element={<CommandCenter />} />
+            <Route path="/" element={<Pulse />} />
             <Route path="/congress" element={<CongressIngestion selectedCongress={selectedCongress} />} />
             <Route path="/insights" element={<MedicalInsights selectedProduct={selectedProduct} />} />
             <Route path="/kol" element={<KOLManagement />} />
