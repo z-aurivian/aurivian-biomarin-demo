@@ -20,4 +20,6 @@ export const CAPTURE_APP_URL = 'https://aurivian-biomarin-capture-app.vercel.app
 
 // Pulse Brief — path to the demo's static HTML brief in /public.
 // Leave null to hide the "Pulse Brief" left-rail link.
-export const PULSE_BRIEF_URL = '/biomarin_pulse_brief.html';
+// Retired 2026-09: superseded by the in-app Pulse home page ("/"), which
+// absorbs the daily-briefing role this static doc used to serve.
+export const PULSE_BRIEF_URL = null;

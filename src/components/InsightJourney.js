@@ -1,11 +1,87 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import {
   Inbox, Filter, ShieldCheck, Rocket, CheckCircle2, Radio,
-  Calendar, TrendingUp, ExternalLink, GitBranch, X,
+  Calendar, TrendingUp, ExternalLink, GitBranch, X, ArrowLeft, Target,
 } from 'lucide-react';
-import { INSIGHTS, ACTIONS, SIGNALS } from '../config';
+import {
+  INSIGHTS, ACTIONS, SIGNALS, MEDICAL_OBJECTIVES, COVERAGE_TARGETS,
+  GAP_RADAR, INSIGHT_TO_IMPACT, VEGA_CARE_GAP_CLOSURE,
+} from '../config';
 import { getPinnedIds, subscribePinned, unpinInsight } from '../lib/journeyStore';
+
+const COVERAGE_STYLE = {
+  Gap: 'bg-rose-50 text-rose-700 border-rose-200',
+  Low: 'bg-amber-50 text-amber-700 border-amber-200',
+  Sufficient: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+};
+
+// ─── Directive detail panel — shown when landing via a "D# ›" chip ────────
+
+function DirectiveDetail({ moId }) {
+  const mo = MEDICAL_OBJECTIVES.find(m => m.id === moId);
+  if (!mo) return null;
+  const coverage = COVERAGE_TARGETS[moId];
+  const gapRadarItems = GAP_RADAR.filter(g => g.moRef === moId);
+  const impactItems = INSIGHT_TO_IMPACT.filter(i => i.relatedMO === moId);
+  const careGapItems = VEGA_CARE_GAP_CLOSURE.filter(g => g.linkedMO === moId);
+
+  return (
+    <div className="rounded-xl border border-auri-border bg-auri-card p-4 space-y-3">
+      <Link to="/journey" className="inline-flex items-center gap-1.5 text-xs text-auri-muted hover:text-auri-text">
+        <ArrowLeft size={12} /> All insights
+      </Link>
+      <div className="flex items-start gap-3">
+        <div className="w-8 h-8 rounded-md border border-auri-border bg-auri-offset flex items-center justify-center shrink-0">
+          <Target size={15} className="text-auri-muted" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-auri-muted">D{moId.replace('MO', '')} · {moId}</span>
+            {coverage && (
+              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${COVERAGE_STYLE[coverage] || ''}`}>{coverage} coverage</span>
+            )}
+          </div>
+          <div className="text-base font-semibold text-auri-text leading-snug mt-0.5">{mo.name}</div>
+          <p className="text-xs text-auri-muted leading-relaxed mt-1">{mo.description}</p>
+        </div>
+      </div>
+
+      {(gapRadarItems.length > 0 || impactItems.length > 0 || careGapItems.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3 border-t border-auri-border">
+          {careGapItems.length > 0 && (
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-auri-muted font-semibold mb-1.5">Measured progress</div>
+              {careGapItems.map((g, i) => (
+                <div key={i} className="text-[11px] text-auri-muted leading-relaxed mb-1.5">
+                  <span className="text-auri-text font-medium">{g.baseline} → {g.current}</span> · {g.gap}
+                </div>
+              ))}
+            </div>
+          )}
+          {impactItems.length > 0 && (
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-auri-muted font-semibold mb-1.5">Closed-loop outcomes</div>
+              {impactItems.map(i => (
+                <div key={i.id} className="text-[11px] text-auri-muted leading-relaxed mb-1.5">{i.outcome}</div>
+              ))}
+            </div>
+          )}
+          {gapRadarItems.length > 0 && (
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-auri-muted font-semibold mb-1.5">Gap Radar suggestions</div>
+              {gapRadarItems.map((g, i) => (
+                <div key={i} className="text-[11px] text-auri-muted leading-relaxed mb-1.5">
+                  <span className="text-auri-text font-medium">{g.type}</span> — {g.suggestion}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── Derivation ─────────────────────────────────────────────────────────
 //
@@ -188,15 +264,19 @@ function SignalCard({ signal }) {
 
 export default function InsightJourney() {
   const [pinnedIds, setPinnedIds] = useState(() => getPinnedIds());
+  const [searchParams] = useSearchParams();
+  const moFilter = searchParams.get('mo');
 
   useEffect(() => subscribePinned(setPinnedIds), []);
   const pinnedSet = new Set(pinnedIds);
+
+  const scopedInsights = moFilter ? INSIGHTS.filter(i => i.moRefs?.includes(moFilter)) : INSIGHTS;
 
   // Bucket insights into lanes. Pinned-from-NOVA insights are forced
   // into the Captured lane (treated as "just promoted to the journey")
   // and placed first so they're easy to spot during a demo.
   const byLane = Object.fromEntries(LANES.map(l => [l.id, []]));
-  INSIGHTS.forEach(i => {
+  scopedInsights.forEach(i => {
     const lane = pinnedSet.has(i.id) ? 'captured' : laneForInsight(i);
     byLane[lane].push(i);
   });
@@ -204,19 +284,25 @@ export default function InsightJourney() {
   byLane.captured.sort((a, b) => Number(pinnedSet.has(b.id)) - Number(pinnedSet.has(a.id)));
 
   // Top 3 signals populate the Captured lane as "not-yet-formalised" entries.
-  const signalsInCaptured = SIGNALS.slice(0, 3);
+  // Skipped when scoped to a single directive — signals aren't MO-tagged,
+  // so they can't be reliably attributed to the filtered objective.
+  const signalsInCaptured = moFilter ? [] : SIGNALS.slice(0, 3);
 
   // Count total "items" in play across the board.
-  const totalItems = INSIGHTS.length + signalsInCaptured.length;
+  const totalItems = scopedInsights.length + signalsInCaptured.length;
 
   return (
     <div className="space-y-5">
+      {moFilter && <DirectiveDetail moId={moFilter} />}
+
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-auri-text mb-1">Insight Journey</h1>
+          <h1 className="text-2xl font-semibold text-auri-text mb-1">{moFilter ? `Insight Journey · D${moFilter.replace('MO', '')}` : 'Insight Journey'}</h1>
           <p className="text-sm text-auri-muted max-w-3xl">
-            Every insight travels from raw signal to strategic impact. This board tracks the journey — what was heard, what was validated, what drove action, and what actually shaped the plan.
+            {moFilter
+              ? 'Every insight linked to this directive, from raw signal to strategic impact.'
+              : 'Every insight travels from raw signal to strategic impact. This board tracks the journey — what was heard, what was validated, what drove action, and what actually shaped the plan.'}
           </p>
         </div>
         <div className="text-right shrink-0">
